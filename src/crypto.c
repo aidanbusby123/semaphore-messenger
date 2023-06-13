@@ -53,10 +53,7 @@ int public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, un
     return result;
 }
 
-int check_msg(msg m){ // get checksum of message, compare with provided checksum to ensure authenticity 
-
-}
-
-int store_msg(msg m){ // store received messages on drive
-
+unsigned char** sha256(unsigned char *d, size_t n, unsigned char *md){
+    unsigned char* hash = SHA256(d, n, md);
+    return &hash;
 }

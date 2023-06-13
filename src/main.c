@@ -67,7 +67,7 @@ int main(){
 
     bzero(buf, BUFLEN);
 
-    msg raw_msg;
+    msg raw_msg, out_msg;
 
     while (read(ui_sock, buf, BUFLEN) != -1){
         if (strncmp(MAGIC, buf, strlen(MAGIC)-1) != 0){
@@ -78,6 +78,7 @@ int main(){
                 // get message type
                 if (buf[0] == CA){
                     raw_msg.type = CA;
+                    out_msg.type = CA;
                     bzero(buf, BUFLEN);
                     if (read(ui_sock, buf, BUFLEN) != -1){
                         strcpy(raw_msg.recv_pub_key, buf);
@@ -105,12 +106,34 @@ int main(){
                         strcat(raw_msg.content, buf);
                         bzero(buf, BUFLEN);
                     }
-                    if (read(ui_sock, buf, BUFLEN != -1)){
-                        strcpy(raw_msg.checksum, buf);
-                    }
+
                     bzero(buf, BUFLEN);
 
+                    strcpy(out_msg.recv_pub_key, raw_msg.recv_pub_key);
+                    strcpy(out_msg.send_pub_key, raw_msg.send_pub_key);
+
                     // Encrypt certificate key (RSA)
+
+                    if ((out_msg.sz = private_encrypt((unsigned char*)raw_msg.content, raw_msg.sz, ctx.priv_key, raw_msg.cipher)) == -1){ // encrypt message
+                        printf("message encryption error\n");
+                    }
+
+                    out_msg.cipher = malloc(strlen(raw_msg.cipher)); // get cipher size
+
+                    for (int i = 0; i < out_msg.sz; i++){ // store cipher in out_msg
+                        out_msg.cipher[i] = raw_msg.cipher[i];
+                    }
+
+                    char **temp_checksum = sha256(raw_msg.content, (size_t)raw_msg.sz, NULL);
+                    for (int i = 0; i < 32; i++){
+                        out_msg.checksum[i] = *temp_checksum[i];
+                    }
+                    out_msg.checksum[32] = 0;
+
+                    out_msg.timestamp = raw_msg.timestamp;
+
+                    send_msg(out_msg, ctx.server_fd);
+
 
                 }
                 if (buf[0] == MESSAGE){
@@ -147,6 +170,31 @@ int main(){
                     }
                     bzero(buf, BUFLEN);
 
+                    // Encrypt messsage (RSA)
+
+                    if (private_encrypt((unsigned char*)raw_msg.content, raw_msg.sz, ctx.priv_key, (unsigned char*)raw_msg.cipher) == -1){
+                        printf("message encryption error\n");
+                    }
+
+                }
+                if (buf[0] == CON){
+                    char addr[256] = {0};
+                    int port;
+                    if (read(ui_sock, buf, BUFLEN) != -1){
+                        if (strlen(addr) >= 256){
+                            printf("addr overflow\n");
+                        } else {
+                            strncpy(addr, buf, strlen(buf));
+                            if (read(ui_sock, buf, BUFLEN) != -1){
+                                if (strlen(buf) <= 5){
+                                    port = atoi(buf);
+                                }
+                                bzero(buf, BUFLEN);
+
+                                ctx.server_fd = server_connect(addr, port); // connect to target server (onion routing)
+                            }
+                        }
+                    }
                 }
             } else {
                 break;

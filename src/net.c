@@ -77,8 +77,15 @@ int server_connect(char *addr_s, int port){ // connect to server
         return -1;
     }
 
+    
+
     printf("Tor connection successful!\n");
 
     return sock_fd;
+    
+}
+
+int send_msg(msg message, int server_fd){
+    unsigned char* msg_buf;
     
 }
