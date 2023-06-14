@@ -10,13 +10,13 @@
 
 #define PROC_SOCK "/tmp/carbide-client.sock"
 #define BUFLEN 512
+const char MAGIC[3] = {0x69, 0x69, 0};
 
 int main(){
     // define variables
     int proc_fd; // process file descriptor
     char buf[BUFLEN];
     ctx ctx;
-    const char MAGIC[3] = {0x69, 0x69, 0};
 
     //
     FILE *priv_fp = open_file("privatekey");
@@ -50,7 +50,7 @@ int main(){
     struct sockaddr_un proc_addr;
     memset ((char*)&proc_addr, 0, sizeof(proc_addr));
     proc_addr.sun_family = AF_UNIX;
-    strncpy(proc_addr.sun_path, PROC_SOCK, strlen(PROC_SOCK)+1);
+    strncpy(proc_addr.sun_path, PROC_SOCK, strlen(PROC_SOCK));
 
     if (bind(proc_fd, (struct sockaddr*)&proc_addr, sizeof(struct sockaddr_un)) == -1){
         perror("proc_fd bind");
@@ -89,8 +89,8 @@ int main(){
                     }
                     bzero(buf, BUFLEN);
                     if (read(ui_sock, buf, BUFLEN != -1)){
-                        raw_msg.timestamp = atoi(buf);
-                        if (raw_msg.timestamp > time(NULL)){
+                        strcpy(raw_msg.timestamp, buf);
+                        if (atoi(raw_msg.timestamp) > time(NULL)){
                             printf("invalid timestamp\n");
                         }
                     }
@@ -124,17 +124,18 @@ int main(){
                         out_msg.cipher[i] = raw_msg.cipher[i];
                     }
 
-                    char **temp_checksum = sha256(raw_msg.content, (size_t)raw_msg.sz, NULL);
+                    unsigned char **temp_checksum = sha256(raw_msg.content, (size_t)raw_msg.sz, NULL);
                     for (int i = 0; i < 32; i++){
                         out_msg.checksum[i] = *temp_checksum[i];
                     }
                     out_msg.checksum[32] = 0;
 
-                    out_msg.timestamp = raw_msg.timestamp;
+                    strcpy(out_msg.timestamp, raw_msg.timestamp);
 
                     send_msg(out_msg, ctx.server_fd);
 
-
+                    memset(&raw_msg, 0, sizeof(raw_msg));
+                    memset(&out_msg, 0, sizeof(out_msg));
                 }
                 if (buf[0] == MESSAGE){
                     raw_msg.type = MESSAGE;
@@ -148,8 +149,8 @@ int main(){
                     }
                     bzero(buf, BUFLEN);
                     if (read(ui_sock, buf, BUFLEN != -1)){
-                        raw_msg.timestamp = atoi(buf);
-                        if (raw_msg.timestamp > time(NULL)){
+                        strcpy(raw_msg.timestamp, buf);
+                        if (atoi(raw_msg.timestamp) > time(NULL)){
                             printf("invalid timestamp\n");
                         }
                     }

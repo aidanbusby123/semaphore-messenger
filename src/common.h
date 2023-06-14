@@ -10,9 +10,9 @@ extern const char MAGIC[3];
 
 typedef struct msg{
     int type;
-    char *recv_pub_key; // receiver (user) public key
-    char *send_pub_key; // sender public key
-    int timestamp; // timestamp of message
+    unsigned char *recv_pub_key; // receiver (user) public key
+    unsigned char *send_pub_key; // sender public key
+    unsigned char *timestamp; // timestamp of message
     int sz;
     unsigned char *cipher; // encrypted message
     unsigned char checksum[33];

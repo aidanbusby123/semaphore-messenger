@@ -54,6 +54,12 @@ int public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, un
 }
 
 unsigned char** sha256(unsigned char *d, size_t n, unsigned char *md){
-    unsigned char* hash = SHA256(d, n, md);
-    return &hash;
+    unsigned char* hash_temp = SHA256(d, n, md);
+    unsigned char** hash = (unsigned char**)malloc(sizeof(unsigned char)*(32+1));
+    for (int i = 0; i < 32; i++){
+        *hash[i] = hash_temp[i];
+    }
+    *hash[32] = 0;
+    return hash;
 }
+

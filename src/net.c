@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<stdlib.h>s
+#include<stdlib.h>
 #include<string.h>
 #include<unistd.h>
 #include<sys/socket.h>
@@ -85,7 +85,29 @@ int server_connect(char *addr_s, int port){ // connect to server
     
 }
 
-int send_msg(msg message, int server_fd){
-    unsigned char* msg_buf;
-    
+int send_msg(msg message, int server_fd){ // format and send message to server
+    unsigned char *msg_buf = (unsigned char*)malloc(message.sz + 2*strlen(MAGIC) + sizeof(int) + strlen(message.recv_pub_key) + strlen(message.send_pub_key) + 2*sizeof(int) + strlen(message.checksum) + 1); // message buffer
+    char type_s[2] = {0}; // message.type string representation
+    char sz_s[2] = {0}; // message.sz string representation
+    // Transfer data to msg_buf
+    strcpy((char*)msg_buf, MAGIC);
+    type_s[0] = (char)message.type + '0';
+    strcat((char*)msg_buf, type_s);
+    strcat((char*)msg_buf, message.recv_pub_key);
+    strcat((char*)msg_buf, message.send_pub_key);
+    strcat((char*)msg_buf, message.timestamp);
+    strcat((char*)msg_buf, type_s);
+    strcat((char*)msg_buf, message.cipher);
+    strcat((char*)msg_buf, message.checksum);
+    strcat((char*)msg_buf, MAGIC);
+
+    int msg_buf_len = strlen((char*)msg_buf);
+    int res = 0;
+
+    while ((res = send(server_fd, msg_buf, msg_buf_len, 0)) > 0){
+        if (res == -1){
+            printf("message send error\n");
+            break;
+        }
+    }
 }
