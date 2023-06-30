@@ -33,22 +33,22 @@ RSA* createRSA(unsigned char* key, int type){
 }
 
 int public_encrypt(unsigned char * data,int data_len,unsigned char * key, unsigned char *encrypted){
-    RSA * rsa = createRSA(key,1);
+    RSA * rsa = createRSA(key, PUBLIC);
     int result = RSA_public_encrypt(data_len,data,encrypted,rsa,padding);
     return result;
 }
 int private_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, unsigned char *decrypted){
-    RSA * rsa = createRSA(key,0);
+    RSA * rsa = createRSA(key, PRIVATE);
     int  result = RSA_private_decrypt(data_len,enc_data,decrypted,rsa,padding);
     return result;
 }
 int private_encrypt(unsigned char * data,int data_len,unsigned char * key, unsigned char *encrypted){
-    RSA * rsa = createRSA(key,0);
+    RSA * rsa = createRSA(key, PRIVATE);
     int result = RSA_private_encrypt(data_len,data,encrypted,rsa,padding);
     return result;
 }
 int public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, unsigned char *decrypted){
-    RSA * rsa = createRSA(key,1);
+    RSA * rsa = createRSA(key, PUBLIC);
     int  result = RSA_public_decrypt(data_len,enc_data,decrypted,rsa,padding);
     return result;
 }

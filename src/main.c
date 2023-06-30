@@ -9,14 +9,19 @@
 #include"common.h"
 
 #define PROC_SOCK "/tmp/carbide-client.sock"
-#define BUFLEN 512
-const char MAGIC[3] = {0x69, 0x69, 0};
+#define BUFLEN 1024
+const char MAGIC[3] = {0x03, 0x10, 0};
+
+void exit_func(ctx *exit_ctx);
 
 int main(){
     // define variables
     int proc_fd; // process file descriptor
-    char buf[BUFLEN];
+    char *buf;
+    char temp_buf[BUFLEN];
     ctx ctx;
+
+    atexit((void*)&exit_func); // handle program exit
 
     //
     FILE *priv_fp = open_file("privatekey");
@@ -36,16 +41,25 @@ int main(){
 
     while ((c = fgetc(priv_fp)) != EOF){ // get user private key
         ctx.priv_key[i] = c;
+        i++;
     }
+    ctx.priv_key[i] = 0;
+    i = 0;
     while((c = fgetc(pub_fp)) != EOF){
         ctx.pub_key[i] = c;
+        i++;
     }
+    ctx.pub_key[i] = 0;
+    i = 0;
 
     // init threads
 
     if ((proc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){ // create socket to allow communication between UI and client process
         perror("proc_fd socket");
     }
+    int true = 1;
+    setsockopt(proc_fd, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(int)); // re-use proc_fd socket
+    remove(PROC_SOCK);
 
     struct sockaddr_un proc_addr;
     memset ((char*)&proc_addr, 0, sizeof(proc_addr));
@@ -63,70 +77,102 @@ int main(){
     struct sockaddr_un ui;
     int ui_len = sizeof(ui);
 
-    int ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
+    ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
 
+    buf = malloc(BUFLEN*sizeof(char));
     bzero(buf, BUFLEN);
+    bzero(temp_buf, BUFLEN);
 
     msg raw_msg, out_msg;
+    int res = 0;
+    int buf_sz = 0;
+    i = 1;
 
-    while (read(ui_sock, buf, BUFLEN) != -1){
-        if (strncmp(MAGIC, buf, strlen(MAGIC)-1) != 0){
-            printf("ui message: incorrect formating\n");
+    raw_msg.cipher = malloc(4096/8); // allocate memory for msg ciphers
+    out_msg.cipher = malloc(4096/8);
+    // main loop, process data from proc_fd and handle program execution, send messages
+    while (1){
+        while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
+            buf = realloc(buf, BUFLEN*(i+1));
+            printf("%s\n", buf);
+            for (int k = 0; k < BUFLEN; k++){
+                if (buf[k+BUFLEN*(i-1)] == '\n'){
+                    res = 1;
+                    break;
+                }
+                buf_sz++;
+            }
+            i++;
+            if (res==1)
+                break;
+            else
+                continue;
         }
-        while (read(ui_sock, buf, BUFLEN) != -1){
-            if (strncmp(MAGIC, buf, strlen(MAGIC)-1) != 0){ // keep getting data until end of transmission
-                // get message type
-                if (buf[0] == CA){
-                    raw_msg.type = CA;
-                    out_msg.type = CA;
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        strcpy(raw_msg.recv_pub_key, buf);
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        strcpy(raw_msg.send_pub_key, buf);
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN != -1)){
-                        strcpy(raw_msg.timestamp, buf);
-                        if (atoi(raw_msg.timestamp) > time(NULL)){
-                            printf("invalid timestamp\n");
-                        }
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        raw_msg.sz = atoi(buf);
-                    }
-                    bzero(buf, BUFLEN);
+        if (buf_sz > (2 * strlen(MAGIC) + 4)){
+            if (strstr(&(buf[0]), MAGIC) == strstr(&(buf[buf_sz-3]), MAGIC) == 0){
+                // parse buffer
+                int m = 3;
+                raw_msg.type = buf[m] - '0';
+                m+=2;
 
-                    int bytes_read = 0;
+                if (raw_msg.type == MESSAGE){
+                    // store message details from client input socket
+                    printf("Message\n");
+                    raw_msg.recv_pub_key = realloc(raw_msg.recv_pub_key, strlen(&(buf[m])));
+                    printf("pubkey-malloc\n");
+                    strcpy(raw_msg.recv_pub_key, &(buf[m]));
+                    printf("pubkey-copy\n");
+                    m += strlen(raw_msg.recv_pub_key) + 1;
+                    raw_msg.timestamp = realloc(raw_msg.timestamp, strlen(&(buf[m])));
+                    printf("timestamp-malloc\n");
+                    strcpy(raw_msg.timestamp, &(buf[m]));
+                    printf("timestamp-copy\n");
+                    m += strlen(raw_msg.timestamp) + 1;
+                    strncpy(raw_msg.sz, &(buf[m]), 4);
+                    printf("rawmsg_sz\n");
+                    m += 4 + 1;
+                    raw_msg.content = realloc(raw_msg.content, strlen(&(buf[m])));
+                    strcpy(raw_msg.content, &(buf[m]));
 
-                    while (bytes_read < raw_msg.sz && (read(ui_sock, buf, BUFLEN) != -1)){
-                        strcat(raw_msg.content, buf);
-                        bzero(buf, BUFLEN);
-                    }
+                    raw_msg.send_pub_key = realloc(raw_msg.send_pub_key, strlen(ctx.pub_key));
+                    out_msg.recv_pub_key = realloc(out_msg.recv_pub_key, strlen(raw_msg.recv_pub_key));
+                    out_msg.send_pub_key = realloc(out_msg.send_pub_key, strlen(raw_msg.send_pub_key));
 
-                    bzero(buf, BUFLEN);
-
+                    strcpy(raw_msg.send_pub_key, ctx.pub_key);
                     strcpy(out_msg.recv_pub_key, raw_msg.recv_pub_key);
                     strcpy(out_msg.send_pub_key, raw_msg.send_pub_key);
-
                     // Encrypt certificate key (RSA)
+                    printf("waypoint-1\n");
 
-                    if ((out_msg.sz = private_encrypt((unsigned char*)raw_msg.content, raw_msg.sz, ctx.priv_key, raw_msg.cipher)) == -1){ // encrypt message
+                    int cipher_sz;
+                    // move this to certificate code
+                    if ((cipher_sz = private_encrypt(raw_msg.content, atoi(raw_msg.sz)+1, ctx.priv_key, raw_msg.cipher)) == -1){ // encrypt message
                         printf("message encryption error\n");
                     }
-
-                    out_msg.cipher = malloc(strlen(raw_msg.cipher)); // get cipher size
-
-                    for (int i = 0; i < out_msg.sz; i++){ // store cipher in out_msg
-                        out_msg.cipher[i] = raw_msg.cipher[i];
+                    printf("waypoint-1.25\n");
+                    out_msg.sz[4] = 0;
+                    for (int k = 3; k >= 0; k--){
+                        out_msg.sz[k] = (cipher_sz % 10) + '0';
+                        cipher_sz /= 10;
                     }
+                    printf("waypoint-1.5\n");
+                    int out_msg_sz = atoi(out_msg.sz);
+                    for (int k = 0; k < out_msg_sz; k++){ // store cipher in out_msg
+                        m = k;
+                        out_msg.cipher[k] = raw_msg.cipher[k] + '0';
+                    }
+                    out_msg.cipher[++m] = 0;
 
-                    unsigned char **temp_checksum = sha256(raw_msg.content, (size_t)raw_msg.sz, NULL);
-                    for (int i = 0; i < 32; i++){
-                        out_msg.checksum[i] = *temp_checksum[i];
+                    printf("waypoint-2\n");
+
+                    unsigned char *temp = malloc(strlen(raw_msg.content) + strlen(raw_msg.send_pub_key) + 1);
+                    strcpy(temp, raw_msg.content);
+                    strcat(temp, raw_msg.send_pub_key);
+
+                    unsigned char **temp_checksum = sha256(temp, (size_t)raw_msg.sz, NULL);
+
+                    for (int k = 0; k < 32; k++){
+                        out_msg.checksum[i] = *temp_checksum[i] + '0';
                     }
                     out_msg.checksum[32] = 0;
 
@@ -137,70 +183,34 @@ int main(){
                     memset(&raw_msg, 0, sizeof(raw_msg));
                     memset(&out_msg, 0, sizeof(out_msg));
                 }
-                if (buf[0] == MESSAGE){
-                    raw_msg.type = MESSAGE;
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        strcpy(raw_msg.recv_pub_key, buf);
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        strcpy(raw_msg.send_pub_key, buf);
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN != -1)){
-                        strcpy(raw_msg.timestamp, buf);
-                        if (atoi(raw_msg.timestamp) > time(NULL)){
-                            printf("invalid timestamp\n");
-                        }
-                    }
-                    bzero(buf, BUFLEN);
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        raw_msg.sz = atoi(buf);
-                    }
-                    bzero(buf, BUFLEN);
-
-                    int bytes_read = 0;
-
-                    while (bytes_read < raw_msg.sz && (read(ui_sock, buf, BUFLEN) != -1)){
-                        strcat(raw_msg.content, buf);
-                        bzero(buf, BUFLEN);
-                    }
-                    if (read(ui_sock, buf, BUFLEN != -1)){
-                        strcpy(raw_msg.checksum, buf);
-                    }
-                    bzero(buf, BUFLEN);
-
-                    // Encrypt messsage (RSA)
-
-                    if (private_encrypt((unsigned char*)raw_msg.content, raw_msg.sz, ctx.priv_key, (unsigned char*)raw_msg.cipher) == -1){
-                        printf("message encryption error\n");
-                    }
-
-                }
-                if (buf[0] == CON){
+                if(raw_msg.type == CON){
+                    printf("Connect\n");
                     char addr[256] = {0};
+                    char port_s[5] = {0};
                     int port;
-                    if (read(ui_sock, buf, BUFLEN) != -1){
-                        if (strlen(addr) >= 256){
-                            printf("addr overflow\n");
-                        } else {
-                            strncpy(addr, buf, strlen(buf));
-                            if (read(ui_sock, buf, BUFLEN) != -1){
-                                if (strlen(buf) <= 5){
-                                    port = atoi(buf);
-                                }
-                                bzero(buf, BUFLEN);
+                    strncpy(addr,&(buf[m]), 256);
+                    m += strlen(addr);
+                    strncpy(port_s, &(buf[m]), 5);
+                    m += 5;
+                    port = atoi(port_s);
 
-                                ctx.server_fd = server_connect(addr, port); // connect to target server (onion routing)
-                            }
-                        }
+                    if ((ctx.server_fd = server_connect(addr, port)) < 0){
+                        printf("server connection error!\n");
                     }
                 }
-            } else {
-                break;
+
             }
         }
+        bzero(&(buf[0]), (BUFLEN*i));
+        i = 1;
+        buf = &(buf[0]);
+        buf_sz = 0;
     }
 }
 
+void exit_func(ctx *exit_ctx){
+    shutdown(exit_ctx->ui_sock, SHUT_RDWR);
+    shutdown(exit_ctx->server_fd, SHUT_RDWR);
+    close(exit_ctx->ui_sock);
+    close(exit_ctx->server_fd);
+}

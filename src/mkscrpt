@@ -1,0 +1,1 @@
+gcc main.c net.c file.c crypto.c -lpthread -lcrypto

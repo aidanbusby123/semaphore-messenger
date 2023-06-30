@@ -9,22 +9,23 @@
 extern const char MAGIC[3];
 
 typedef struct msg{
-    int type;
+    unsigned char type;
     unsigned char *recv_pub_key; // receiver (user) public key
     unsigned char *send_pub_key; // sender public key
     unsigned char *timestamp; // timestamp of message
-    int sz;
+    unsigned char sz[5];
     unsigned char *cipher; // encrypted message
     unsigned char checksum[33];
     
-    char *content; // decrypted message content
+    unsigned char *content; // decrypted message content
 }msg;
 
 typedef struct ctx{
-    char pub_key[8192];
-    char priv_key[8192];
+    char pub_key[4096];
+    char priv_key[4096];
 
-    int server_fd;
+    int server_fd; // server socket fd
+    int ui_sock; // UI socket
 }ctx;
 
 int server_connect(char *addr_s, int port);

@@ -86,20 +86,20 @@ int server_connect(char *addr_s, int port){ // connect to server
 }
 
 int send_msg(msg message, int server_fd){ // format and send message to server
-    unsigned char *msg_buf = (unsigned char*)malloc(message.sz + 2*strlen(MAGIC) + sizeof(int) + strlen(message.recv_pub_key) + strlen(message.send_pub_key) + 2*sizeof(int) + strlen(message.checksum) + 1); // message buffer
+    unsigned char *msg_buf = (unsigned char*)malloc(atoi(message.sz) + 1 + 2*strlen(MAGIC) + 1 + sizeof(int) +1 + strlen(message.recv_pub_key) + 1 + strlen(message.send_pub_key) + 1 + 2*sizeof(int) + 1 + strlen(message.checksum) + 1 + 1 + 1); // message buffer
     char type_s[2] = {0}; // message.type string representation
     char sz_s[2] = {0}; // message.sz string representation
     // Transfer data to msg_buf
     strcpy((char*)msg_buf, MAGIC);
     type_s[0] = (char)message.type + '0';
-    strcat((char*)msg_buf, type_s);
-    strcat((char*)msg_buf, message.recv_pub_key);
-    strcat((char*)msg_buf, message.send_pub_key);
-    strcat((char*)msg_buf, message.timestamp);
-    strcat((char*)msg_buf, type_s);
-    strcat((char*)msg_buf, message.cipher);
-    strcat((char*)msg_buf, message.checksum);
-    strcat((char*)msg_buf, MAGIC);
+    strcat((char*)(msg_buf+1), type_s);
+    strcat((char*)(msg_buf+1), message.recv_pub_key);
+    strcat((char*)(msg_buf+1), message.send_pub_key);
+    strcat((char*)(msg_buf+1), message.timestamp);
+    strcat((char*)(msg_buf+1), type_s);
+    strcat((char*)(msg_buf+1), message.cipher);
+    strcat((char*)(msg_buf+1), message.checksum);
+    strcat((char*)(msg_buf+1), MAGIC);
 
     int msg_buf_len = strlen((char*)msg_buf);
     int res = 0;
