@@ -1,0 +1,69 @@
+Commited in 2.32
+
+commit f1cd3407e4c6767e0bbe2ca122b713c6581b8d67
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Feb 9 23:13:24 2020 +0000
+
+    htl: clean __pthread_get_cleanup_stack hidden proto
+
+Index: glibc-2.31/htl/pt-cleanup.c
+===================================================================
+--- glibc-2.31.orig/htl/pt-cleanup.c
++++ glibc-2.31/htl/pt-cleanup.c
+@@ -21,8 +21,8 @@
+ #include <pt-internal.h>
+ 
+ struct __pthread_cancelation_handler **
+-___pthread_get_cleanup_stack (void)
++__pthread_get_cleanup_stack (void)
+ {
+   return &_pthread_self ()->cancelation_handlers;
+ }
+-strong_alias (___pthread_get_cleanup_stack, __pthread_get_cleanup_stack)
++hidden_def(__pthread_get_cleanup_stack)
+Index: glibc-2.31/htl/pt-exit.c
+===================================================================
+--- glibc-2.31.orig/htl/pt-exit.c
++++ glibc-2.31/htl/pt-exit.c
+@@ -41,7 +41,7 @@ __pthread_exit (void *status)
+      disabled.  */
+   __pthread_setcancelstate (PTHREAD_CANCEL_DISABLE, &oldstate);
+ 
+-  for (handlers = ___pthread_get_cleanup_stack ();
++  for (handlers = __pthread_get_cleanup_stack ();
+        *handlers != NULL;
+        *handlers = (*handlers)->__next)
+     (*handlers)->__handler ((*handlers)->__arg);
+Index: glibc-2.31/htl/pt-join.c
+===================================================================
+--- glibc-2.31.orig/htl/pt-join.c
++++ glibc-2.31/htl/pt-join.c
+@@ -22,8 +22,6 @@
+ 
+ #include <pt-internal.h>
+ 
+-#define __pthread_get_cleanup_stack ___pthread_get_cleanup_stack
+-
+ /* Make calling thread wait for termination of thread THREAD.  Return
+    the exit status of the thread in *STATUS.  */
+ int
+Index: glibc-2.31/sysdeps/htl/pthreadP.h
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/pthreadP.h
++++ glibc-2.31/sysdeps/htl/pthreadP.h
+@@ -67,7 +67,6 @@ int __pthread_attr_setstacksize (pthread
+ int __pthread_attr_setstack (pthread_attr_t *__attr, void *__stackaddr,
+ 			     size_t __stacksize);
+ int __pthread_attr_getstack (const pthread_attr_t *, void **, size_t *);
+-struct __pthread_cancelation_handler **___pthread_get_cleanup_stack (void) attribute_hidden;
+ 
+ #if IS_IN (libpthread)
+ hidden_proto (__pthread_create)
+@@ -76,6 +75,7 @@ hidden_proto (__pthread_key_create)
+ hidden_proto (__pthread_getspecific)
+ hidden_proto (__pthread_setspecific)
+ hidden_proto (_pthread_mutex_init)
++hidden_proto (__pthread_get_cleanup_stack)
+ #endif
+ 
+ #define ASSERT_TYPE_SIZE(type, size) 					\

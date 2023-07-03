@@ -1,0 +1,588 @@
+Commited for 2.33
+
+commit 4702ba8c1726ef5b692fbca1255b632b8e81e8c7
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Dec 13 15:14:40 2020 +0000
+
+    htl: Add pshared semaphore support
+    
+    The implementation is extremely similar to the nptl implementation, but
+    with slight differences in the futex interface. This fixes some of BZ
+    25521.
+
+Index: glibc-2.31/htl/Makefile
+===================================================================
+--- glibc-2.31.orig/htl/Makefile
++++ glibc-2.31/htl/Makefile
+@@ -131,7 +131,7 @@ libpthread-routines := pt-attr pt-attr-d
+ 									    \
+ 	sem-close sem-destroy sem-getvalue sem-init sem-open		    \
+ 	sem-post sem-timedwait sem-trywait sem-unlink			    \
+-	sem-wait							    \
++	sem-wait sem-waitfast						    \
+ 									    \
+ 	shm-directory							    \
+ 									    \
+Index: glibc-2.31/htl/pt-internal.h
+===================================================================
+--- glibc-2.31.orig/htl/pt-internal.h
++++ glibc-2.31/htl/pt-internal.h
+@@ -323,4 +323,37 @@ extern const struct __pthread_rwlockattr
+ /* Default condition attributes.  */
+ extern const struct __pthread_condattr __pthread_default_condattr;
+ 
++/* Semaphore encoding.
++   See nptl implementation for the details.  */
++struct new_sem
++{
++#if __HAVE_64B_ATOMICS
++  /* The data field holds both value (in the least-significant 32 bits) and
++     nwaiters.  */
++# if __BYTE_ORDER == __LITTLE_ENDIAN
++#  define SEM_VALUE_OFFSET 0
++# elif __BYTE_ORDER == __BIG_ENDIAN
++#  define SEM_VALUE_OFFSET 1
++# else
++#  error Unsupported byte order.
++# endif
++# define SEM_NWAITERS_SHIFT 32
++# define SEM_VALUE_MASK (~(unsigned int)0)
++  uint64_t data;
++  int pshared;
++#define __SEMAPHORE_INITIALIZER(value, pshared) \
++  { (value), (pshared) }
++#else
++# define SEM_VALUE_SHIFT 1
++# define SEM_NWAITERS_MASK ((unsigned int)1)
++  unsigned int value;
++  unsigned int nwaiters;
++  int pshared;
++#define __SEMAPHORE_INITIALIZER(value, pshared) \
++  { (value) << SEM_VALUE_SHIFT, 0, (pshared) }
++#endif
++};
++
++extern int __sem_waitfast (struct new_sem *isem, int definitive_result);
++
+ #endif /* pt-internal.h */
+Index: glibc-2.31/sysdeps/htl/bits/semaphore.h
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/bits/semaphore.h
++++ glibc-2.31/sysdeps/htl/bits/semaphore.h
+@@ -27,21 +27,15 @@
+ #include <bits/pthread.h>
+ 
+ /* User visible part of a semaphore.  */
+-struct __semaphore
+-{
+-  __pthread_spinlock_t __lock;
+-  struct __pthread *__queue;
+-  int __pshared;
+-  int __value;
+-  void *__data;
+-};
+ 
+-typedef struct __semaphore sem_t;
++#define __SIZEOF_SEM_T	20
+ 
+-#define SEM_FAILED ((void *) 0)
++typedef union
++{
++  char __size[__SIZEOF_SEM_T];
++  long int __align;
++} sem_t;
+ 
+-/* Initializer for a semaphore.  */
+-#define __SEMAPHORE_INITIALIZER(pshared, value) \
+-  { __PTHREAD_SPIN_LOCK_INITIALIZER, NULL, (pshared), (value), NULL }
++#define SEM_FAILED ((void *) 0)
+ 
+ #endif /* bits/semaphore.h */
+Index: glibc-2.31/sysdeps/htl/sem-destroy.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-destroy.c
++++ glibc-2.31/sysdeps/htl/sem-destroy.c
+@@ -24,7 +24,15 @@
+ int
+ __sem_destroy (sem_t *sem)
+ {
+-  if (sem->__queue)
++  struct new_sem *isem = (struct new_sem *) sem;
++  if (
++#if __HAVE_64B_ATOMICS
++      atomic_load_relaxed (&isem->data) >> SEM_NWAITERS_SHIFT
++#else
++      atomic_load_relaxed (&isem->value) & SEM_NWAITERS_MASK
++      || isem->nwaiters
++#endif
++      )
+     /* There are threads waiting on *SEM.  */
+     {
+       errno = EBUSY;
+Index: glibc-2.31/sysdeps/htl/sem-getvalue.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-getvalue.c
++++ glibc-2.31/sysdeps/htl/sem-getvalue.c
+@@ -22,9 +22,13 @@
+ int
+ __sem_getvalue (sem_t *restrict sem, int *restrict value)
+ {
+-  __pthread_spin_lock (&sem->__lock);
+-  *value = sem->__value;
+-  __pthread_spin_unlock (&sem->__lock);
++  struct new_sem *isem = (struct new_sem *) sem;
++
++#if __HAVE_64B_ATOMICS
++  *value = atomic_load_relaxed (&isem->data) & SEM_VALUE_MASK;
++#else
++  *value = atomic_load_relaxed (&isem->value) >> SEM_VALUE_SHIFT;
++#endif
+ 
+   return 0;
+ }
+Index: glibc-2.31/sysdeps/htl/sem-init.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-init.c
++++ glibc-2.31/sysdeps/htl/sem-init.c
+@@ -24,12 +24,6 @@
+ int
+ __sem_init (sem_t *sem, int pshared, unsigned value)
+ {
+-  if (pshared != 0)
+-    {
+-      errno = EOPNOTSUPP;
+-      return -1;
+-    }
+-
+ #ifdef SEM_VALUE_MAX
+   if (value > SEM_VALUE_MAX)
+     {
+@@ -38,7 +32,9 @@ __sem_init (sem_t *sem, int pshared, uns
+     }
+ #endif
+ 
+-  *sem = (sem_t) __SEMAPHORE_INITIALIZER (pshared, value);
++  struct new_sem *isem = (struct new_sem *) sem;
++
++  *isem = (struct new_sem) __SEMAPHORE_INITIALIZER (value, pshared);
+   return 0;
+ }
+ 
+Index: glibc-2.31/sysdeps/htl/sem-post.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-post.c
++++ glibc-2.31/sysdeps/htl/sem-post.c
+@@ -19,41 +19,50 @@
+ #include <semaphore.h>
+ #include <assert.h>
+ 
++#include <hurdlock.h>
++
+ #include <pt-internal.h>
+ 
+ int
+ __sem_post (sem_t *sem)
+ {
+-  struct __pthread *wakeup;
++  struct new_sem *isem = (struct new_sem *) sem;
++  int flags = isem->pshared ? GSYNC_SHARED : 0;
+ 
+-  __pthread_spin_lock (&sem->__lock);
+-  if (sem->__value > 0)
+-    /* Do a quick up.  */
+-    {
+-      assert (sem->__queue == NULL);
+-      sem->__value++;
+-      __pthread_spin_unlock (&sem->__lock);
+-      return 0;
+-    }
++#if __HAVE_64B_ATOMICS
++  uint64_t d = atomic_load_relaxed (&isem->data);
+ 
+-  if (sem->__queue == NULL)
+-    /* No one waiting.  */
++  do
+     {
+-      sem->__value = 1;
+-      __pthread_spin_unlock (&sem->__lock);
+-      return 0;
++      if ((d & SEM_VALUE_MASK) == SEM_VALUE_MAX)
++	{
++	  errno = EOVERFLOW;
++	  return -1;
++	}
+     }
++  while (!atomic_compare_exchange_weak_release (&isem->data, &d, d + 1));
+ 
+-  /* Wake someone up.  */
++  if ((d >> SEM_NWAITERS_SHIFT) != 0)
++    /* Wake one waiter.  */
++    __lll_wake (((unsigned int *) &isem->data) + SEM_VALUE_OFFSET, flags);
++#else
++  unsigned int v = atomic_load_relaxed (&isem->value);
+ 
+-  /* First dequeue someone.  */
+-  wakeup = sem->__queue;
+-  __pthread_dequeue (wakeup);
+-
+-  /* Then drop the lock and transfer control.  */
+-  __pthread_spin_unlock (&sem->__lock);
++  do
++    {
++      if ((v >> SEM_VALUE_SHIFT) == SEM_VALUE_MAX)
++	{
++	  errno = EOVERFLOW;
++	  return -1;
++	}
++    }
++  while (!atomic_compare_exchange_weak_release
++	  (&isem->value, &v, v + (1 << SEM_VALUE_SHIFT)));
+ 
+-  __pthread_wakeup (wakeup);
++  if ((v & SEM_NWAITERS_MASK) != 0)
++    /* Wake one waiter.  */
++    __lll_wake (&isem->value, flags);
++#endif
+ 
+   return 0;
+ }
+Index: glibc-2.31/sysdeps/htl/sem-trywait.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-trywait.c
++++ glibc-2.31/sysdeps/htl/sem-trywait.c
+@@ -24,18 +24,13 @@
+ int
+ __sem_trywait (sem_t *sem)
+ {
+-  __pthread_spin_lock (&sem->__lock);
+-  if (sem->__value > 0)
+-    /* Successful down.  */
+-    {
+-      sem->__value--;
+-      __pthread_spin_unlock (&sem->__lock);
+-      return 0;
+-    }
+-  __pthread_spin_unlock (&sem->__lock);
++  struct new_sem *isem = (struct new_sem *) sem;
++
++  if (__sem_waitfast (isem, 1) == 0)
++    return 0;
+ 
+   errno = EAGAIN;
+   return -1;
+ }
+ 
+-strong_alias (__sem_trywait, sem_trywait);
++weak_alias (__sem_trywait, sem_trywait);
+Index: glibc-2.31/sysdeps/htl/sem-timedwait.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-timedwait.c
++++ glibc-2.31/sysdeps/htl/sem-timedwait.c
+@@ -20,78 +20,180 @@
+ #include <errno.h>
+ #include <assert.h>
+ #include <time.h>
++#include <hurdlock.h>
++#include <hurd/hurd.h>
++#include <sysdep-cancel.h>
+ 
+ #include <pt-internal.h>
+ 
++#if !__HAVE_64B_ATOMICS
++static void
++__sem_wait_32_finish (struct new_sem *isem);
++#endif
++
++static void
++__sem_wait_cleanup (void *arg)
++{
++  struct new_sem *isem = arg;
++
++#if __HAVE_64B_ATOMICS
++  atomic_fetch_add_relaxed (&isem->data, -((uint64_t) 1 << SEM_NWAITERS_SHIFT));
++#else
++  __sem_wait_32_finish (isem);
++#endif
++}
++
+ int
+ __sem_timedwait_internal (sem_t *restrict sem,
++			  clockid_t clock_id,
+ 			  const struct timespec *restrict timeout)
+ {
+-  error_t err;
+-  int drain;
+-  struct __pthread *self;
+-  clockid_t clock_id = CLOCK_REALTIME;
+-
+-  __pthread_spin_lock (&sem->__lock);
+-  if (sem->__value > 0)
+-    /* Successful down.  */
+-    {
+-      sem->__value--;
+-      __pthread_spin_unlock (&sem->__lock);
+-      return 0;
+-    }
++  struct new_sem *isem = (struct new_sem *) sem;
++  int err, ret = 0;
++  int flags = isem->pshared ? GSYNC_SHARED : 0;
++
++  __pthread_testcancel ();
++
++  if (__sem_waitfast (isem, 0) == 0)
++    return 0;
++
++  int cancel_oldtype = LIBC_CANCEL_ASYNC();
+ 
+-  if (timeout != NULL && ! valid_nanoseconds (timeout->tv_nsec))
++#if __HAVE_64B_ATOMICS
++  uint64_t d = atomic_fetch_add_relaxed (&sem->data,
++		 (uint64_t) 1 << SEM_NWAITERS_SHIFT);
++
++  pthread_cleanup_push (__sem_wait_cleanup, isem);
++
++  for (;;)
+     {
+-      errno = EINVAL;
+-      return -1;
++      if ((d & SEM_VALUE_MASK) == 0)
++	{
++	  /* No token, sleep.  */
++	  if (timeout)
++	    err = __lll_abstimed_wait_intr (
++		      ((unsigned int *) &sem->data) + SEM_VALUE_OFFSET,
++		      0, timeout, flags, clock_id);
++	  else
++	    err = __lll_wait_intr (
++		      ((unsigned int *) &sem->data) + SEM_VALUE_OFFSET,
++		      0, flags);
++
++	  if (err != 0)
++	    {
++	      /* Error, interruption or timeout, abort.  */
++	      if (err == KERN_TIMEDOUT)
++		err = ETIMEDOUT;
++	      if (err == KERN_INTERRUPTED)
++		err = EINTR;
++	      ret = __hurd_fail (err);
++	      __sem_wait_cleanup (isem);
++	      break;
++	    }
++
++	  /* Token changed */
++	  d = atomic_load_relaxed (&sem->data);
++	}
++      else
++	{
++	  /* Try to acquire and dequeue.  */
++	  if (atomic_compare_exchange_weak_acquire (&sem->data,
++	      &d, d - 1 - ((uint64_t) 1 << SEM_NWAITERS_SHIFT)))
++	    {
++	      /* Success */
++	      ret = 0;
++	      break;
++	    }
++	}
+     }
+ 
+-  /* Add ourselves to the queue.  */
+-  self = _pthread_self ();
++  pthread_cleanup_pop (0);
++#else
++  unsigned int v;
++
++  atomic_fetch_add_acquire (&isem->nwaiters, 1);
+ 
+-  __pthread_enqueue (&sem->__queue, self);
+-  __pthread_spin_unlock (&sem->__lock);
++  pthread_cleanup_push (__sem_wait_cleanup, isem);
+ 
+-  /* Block the thread.  */
+-  if (timeout != NULL)
+-    err = __pthread_timedblock_intr (self, timeout, clock_id);
+-  else
+-    err = __pthread_block_intr (self);
+-
+-  __pthread_spin_lock (&sem->__lock);
+-  if (self->prevp == NULL)
+-    /* Another thread removed us from the queue, which means a wakeup message
+-       has been sent.  It was either consumed while we were blocking, or
+-       queued after we timed out and before we acquired the semaphore lock, in
+-       which case the message queue must be drained.  */
+-    drain = err ? 1 : 0;
+-  else
++  v = atomic_load_relaxed (&isem->value);
++  do
+     {
+-      /* We're still in the queue.  Noone attempted to wake us up, i.e. we
+-         timed out.  */
+-      __pthread_dequeue (self);
+-      drain = 0;
++      do
++	{
++	  do
++	    {
++	      if ((v & SEM_NWAITERS_MASK) != 0)
++		break;
++	    }
++	  while (!atomic_compare_exchange_weak_release (&isem->value,
++	      &v, v | SEM_NWAITERS_MASK));
++
++	  if ((v >> SEM_VALUE_SHIFT) == 0)
++	    {
++	      /* No token, sleep.  */
++	      if (timeout)
++		err = __lll_abstimed_wait_intr (&isem->value,
++			  SEM_NWAITERS_MASK, timeout, flags, clock_id);
++	      else
++		err = __lll_wait_intr (&isem->value,
++			  SEM_NWAITERS_MASK, flags);
++
++	      if (err != 0)
++		{
++		  /* Error, interruption or timeout, abort.  */
++		  if (err == KERN_TIMEDOUT)
++		    err = ETIMEDOUT;
++		  if (err == KERN_INTERRUPTED)
++		    err = EINTR;
++		  ret = __hurd_fail (err);
++		  goto error;
++		}
++
++	      /* Token changed */
++	      v = atomic_load_relaxed (&isem->value);
++	    }
++	}
++      while ((v >> SEM_VALUE_SHIFT) == 0);
+     }
+-  __pthread_spin_unlock (&sem->__lock);
++  while (!atomic_compare_exchange_weak_acquire (&isem->value,
++	  &v, v - (1 << SEM_VALUE_SHIFT)));
++
++error:
++  pthread_cleanup_pop (0);
++
++  __sem_wait_32_finish (isem);
++#endif
+ 
+-  if (drain)
+-    __pthread_block (self);
++  LIBC_CANCEL_RESET (cancel_oldtype);
+ 
+-  if (err)
++  return ret;
++}
++
++#if !__HAVE_64B_ATOMICS
++/* Stop being a registered waiter (non-64b-atomics code only).  */
++static void
++__sem_wait_32_finish (struct new_sem *isem)
++{
++  unsigned int wguess = atomic_load_relaxed (&isem->nwaiters);
++  if (wguess == 1)
++    atomic_fetch_and_acquire (&isem->value, ~SEM_NWAITERS_MASK);
++
++  unsigned int wfinal = atomic_fetch_add_release (&isem->nwaiters, -1);
++  if (wfinal > 1 && wguess == 1)
+     {
+-      assert (err == ETIMEDOUT || err == EINTR);
+-      errno = err;
+-      return -1;
++      unsigned int v = atomic_fetch_or_relaxed (&isem->value,
++						SEM_NWAITERS_MASK);
++      v >>= SEM_VALUE_SHIFT;
++      while (v--)
++	__lll_wake (&isem->value, isem->pshared ? GSYNC_SHARED : 0);
+     }
+-
+-  return 0;
+ }
++#endif
+ 
+ int
+ __sem_timedwait (sem_t *restrict sem, const struct timespec *restrict timeout)
+ {
+-  return __sem_timedwait_internal (sem, timeout);
++  return __sem_timedwait_internal (sem, CLOCK_REALTIME, timeout);
+ }
+ 
+ weak_alias (__sem_timedwait, sem_timedwait);
+Index: glibc-2.31/sysdeps/htl/sem-wait.c
+===================================================================
+--- glibc-2.31.orig/sysdeps/htl/sem-wait.c
++++ glibc-2.31/sysdeps/htl/sem-wait.c
+@@ -20,12 +20,13 @@
+ #include <pt-internal.h>
+ 
+ extern int __sem_timedwait_internal (sem_t *restrict sem,
++				     clockid_t clock_id,
+ 				     const struct timespec *restrict timeout);
+ 
+ int
+ __sem_wait (sem_t *sem)
+ {
+-  return __sem_timedwait_internal (sem, 0);
++  return __sem_timedwait_internal (sem, CLOCK_REALTIME, 0);
+ }
+ 
+ strong_alias (__sem_wait, sem_wait);
+Index: glibc-2.31/sysdeps/htl/sem-waitfast.c
+===================================================================
+--- /dev/null
++++ glibc-2.31/sysdeps/htl/sem-waitfast.c
+@@ -0,0 +1,55 @@
++/* Lock a semaphore if it does not require blocking.  Generic version.
++   Copyright (C) 2005-2020 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library;  if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <semaphore.h>
++#include <errno.h>
++
++#include <pt-internal.h>
++
++int
++__sem_waitfast (struct new_sem *isem, int definitive_result)
++{
++#if __HAVE_64B_ATOMICS
++  uint64_t d = atomic_load_relaxed (&isem->data);
++
++  do
++    {
++      if ((d & SEM_VALUE_MASK) == 0)
++	break;
++      if (atomic_compare_exchange_weak_acquire (&isem->data, &d, d - 1))
++	/* Successful down.  */
++	return 0;
++    }
++  while (definitive_result);
++  return -1;
++#else
++  unsigned v = atomic_load_relaxed (&isem->value);
++
++  do
++    {
++      if ((v >> SEM_VALUE_SHIFT) == 0)
++	break;
++      if (atomic_compare_exchange_weak_acquire (&isem->value,
++	    &v, v - (1 << SEM_VALUE_SHIFT)))
++	/* Successful down.  */
++	return 0;
++    }
++  while (definitive_result);
++  return -1;
++#endif
++}

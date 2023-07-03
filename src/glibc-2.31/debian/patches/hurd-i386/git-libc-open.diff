@@ -1,0 +1,32 @@
+Commited for 2.33
+
+commit a6c9f54a3471a527ff502f26e3a1c1b03ab39d6e
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Dec 13 13:29:25 2020 +0000
+
+    hurd: Add __libc_open and __libc_close
+    
+    Needed by libpthread for sem_open and sem_close
+
+diff --git a/hurd/Versions b/hurd/Versions
+index 1aad27d91f..b66d37be07 100644
+--- a/hurd/Versions
++++ b/hurd/Versions
+@@ -153,6 +153,7 @@ libc {
+     __lll_abstimed_lock; __lll_robust_lock;
+     __lll_robust_abstimed_lock; __lll_robust_trylock;
+     __lll_robust_unlock;
++    __libc_open; __libc_close;
+ 
+     # Used by libpthread.
+     _hurd_sigstate_set_global_rcv;
+diff --git a/sysdeps/mach/hurd/close.c b/sysdeps/mach/hurd/close.c
+index b461087447..b6530dfeee 100644
+--- a/sysdeps/mach/hurd/close.c
++++ b/sysdeps/mach/hurd/close.c
+@@ -35,4 +35,5 @@ __close (int fd)
+   return err ? __hurd_fail (err) : 0;
+ }
+ libc_hidden_def (__close)
++strong_alias (__close, __libc_close)
+ weak_alias (__close, close)

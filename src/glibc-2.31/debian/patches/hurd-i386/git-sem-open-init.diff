@@ -1,0 +1,82 @@
+Submitted for 2.33
+
+commit e453b54b02204e0bc4a36a865ecc0c82058f4f9d
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Dec 13 15:18:16 2020 +0000
+
+    pthread: Move semaphore initialization for open to semaphoreP.h
+    
+    This allows to easily reuse all of the sem_open/sem_close/sem_unlink
+    implementations in the various ports.
+
+---
+ nptl/sem_open.c               |   12 +-----------
+ nptl/semaphoreP.h             |   15 +++++++++++++++
+ sysdeps/nptl/futex-internal.h |    3 +++
+ 3 files changed, 19 insertions(+), 11 deletions(-)
+
+--- a/nptl/sem_open.c
++++ b/nptl/sem_open.c
+@@ -211,17 +211,7 @@ sem_open (const char *name, int oflag, .
+ 	struct new_sem newsem;
+       } sem;
+ 
+-#if __HAVE_64B_ATOMICS
+-      sem.newsem.data = value;
+-#else
+-      sem.newsem.value = value << SEM_VALUE_SHIFT;
+-      sem.newsem.nwaiters = 0;
+-#endif
+-      /* pad is used as a mutex on pre-v9 sparc and ignored otherwise.  */
+-      sem.newsem.pad = 0;
+-
+-      /* This always is a shared semaphore.  */
+-      sem.newsem.private = FUTEX_SHARED;
++      __new_sem_open_init (&sem.newsem, value);
+ 
+       /* Initialize the remaining bytes as well.  */
+       memset ((char *) &sem.initsem + sizeof (struct new_sem), '\0',
+--- a/nptl/semaphoreP.h
++++ b/nptl/semaphoreP.h
+@@ -17,6 +17,7 @@
+    <https://www.gnu.org/licenses/>.  */
+ 
+ #include <semaphore.h>
++#include <futex-internal.h>
+ #include "pthreadP.h"
+ 
+ #define SEM_SHM_PREFIX  "sem."
+@@ -42,6 +43,20 @@ extern int __sem_mappings_lock attribute
+ /* Comparison function for search in tree with existing mappings.  */
+ extern int __sem_search (const void *a, const void *b) attribute_hidden;
+ 
++static inline void __new_sem_open_init (struct new_sem *sem, unsigned value)
++{
++#if __HAVE_64B_ATOMICS
++  sem->data = value;
++#else
++  sem->value = value << SEM_VALUE_SHIFT;
++  sem->nwaiters = 0;
++#endif
++  /* pad is used as a mutex on pre-v9 sparc and ignored otherwise.  */
++  sem->pad = 0;
++
++  /* This always is a shared semaphore.  */
++  sem->private = FUTEX_SHARED;
++}
+ 
+ /* Prototypes of functions with multiple interfaces.  */
+ extern int __new_sem_init (sem_t *sem, int pshared, unsigned int value);
+--- a/sysdeps/nptl/futex-internal.h
++++ b/sysdeps/nptl/futex-internal.h
+@@ -23,7 +23,10 @@
+ #include <sys/time.h>
+ #include <stdio.h>
+ #include <stdbool.h>
++#include <lowlevellock-futex.h>
+ #include <libc-diag.h>
++#include <errno.h>
++#include <pthread.h>
+ 
+ /* This file defines futex operations used internally in glibc.  A futex
+    consists of the so-called futex word in userspace, which is of type

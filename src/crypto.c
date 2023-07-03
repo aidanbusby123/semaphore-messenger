@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<string.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/rsa.h>
@@ -7,16 +8,11 @@
 #include <openssl/err.h>
 #include"common.h"
 
-#define PUBLIC 0
-#define PRIVATE 1
-
 int padding = RSA_PKCS1_PADDING;
 
 RSA* createRSA(unsigned char* key, int type){
     RSA *rsa = NULL;
-    BIO* keybio;
-    keybio = BIO_new_mem_buf(key, -1);
-
+    BIO* keybio = BIO_new_mem_buf(key, -1);
     if (keybio == NULL){
         printf("unable to create key BIO\n");
         return 0;
@@ -44,7 +40,11 @@ int private_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, u
 }
 int private_encrypt(unsigned char * data,int data_len,unsigned char * key, unsigned char *encrypted){
     RSA * rsa = createRSA(key, PRIVATE);
+    printf("created rsa\n");
     int result = RSA_private_encrypt(data_len,data,encrypted,rsa,padding);
+    if (result == -1){
+        printf("%s", ERR_error_string(ERR_get_error(), NULL));
+    }
     return result;
 }
 int public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, unsigned char *decrypted){
@@ -53,13 +53,27 @@ int public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, un
     return result;
 }
 
-unsigned char** sha256(unsigned char *d, size_t n, unsigned char *md){
+int rsa_sz(unsigned char* key, int type){
+    int sz;
+    RSA *rsa = createRSA(key, type);
+    sz = RSA_size(rsa);
+    return sz;
+}
+
+unsigned char* sha256(unsigned char *d, size_t n, unsigned char *md){ // return string version of sha256 hash
     unsigned char* hash_temp = SHA256(d, n, md);
-    unsigned char** hash = (unsigned char**)malloc(sizeof(unsigned char)*(32+1));
-    for (int i = 0; i < 32; i++){
-        *hash[i] = hash_temp[i];
-    }
-    *hash[32] = 0;
+    unsigned char* hash = malloc(2 * SHA256_DIGEST_LENGTH + 1);
+    hash = char_to_hex(hash_temp);
+    hash[2*SHA256_DIGEST_LENGTH] = 0;
     return hash;
 }
 
+unsigned char* char_to_hex(unsigned char *s){
+    int sz = strlen(s);
+    unsigned char *hex = malloc(2 * sz + 1);
+    for (int i = 0; i < sz; i++){
+        hex[2 * i] = ((s[i]/16) >= 10) ? ('a' + s[i]/16 - 10) : (s[i] / 16) + '0';
+        hex[2 * i + 1] = ((s[i] - ((s[i]/16) * 16)) >= 10) ? ('a' + (s[i] - ((s[i]/16) * 16)) - 10) : s[i] - (s[i]/16) * 16 + '0';
+    }
+    return hex;
+}

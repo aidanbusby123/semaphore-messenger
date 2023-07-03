@@ -1,0 +1,44 @@
+Commited for 2.33
+
+commit 7c331116971d38e57703af4097ed13ab6bef91d0
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Thu Dec 3 12:21:47 2020 +0100
+
+    htl: Add hidden def for __pthread_create/detach
+    
+    to avoid a PLT.
+
+---
+ htl/pt-create.c        |    1 +
+ htl/pt-detach.c        |    1 +
+ sysdeps/htl/pthreadP.h |    2 ++
+ 3 files changed, 4 insertions(+)
+
+--- a/htl/pt-create.c
++++ b/htl/pt-create.c
+@@ -80,6 +80,7 @@ __pthread_create (pthread_t * thread, co
+   return err;
+ }
+ strong_alias (__pthread_create, pthread_create)
++hidden_def (__pthread_create)
+ 
+ /* Internal version of pthread_create.  See comment in
+    pt-internal.h.  */
+--- a/htl/pt-detach.c
++++ b/htl/pt-detach.c
+@@ -78,3 +78,4 @@ __pthread_detach (pthread_t thread)
+   return err;
+ }
+ strong_alias (__pthread_detach, pthread_detach)
++hidden_def (__pthread_detach)
+--- a/sysdeps/htl/pthreadP.h
++++ b/sysdeps/htl/pthreadP.h
+@@ -70,6 +70,8 @@ int __pthread_attr_getstack (const pthre
+ struct __pthread_cancelation_handler **___pthread_get_cleanup_stack (void) attribute_hidden;
+ 
+ #if IS_IN (libpthread)
++hidden_proto (__pthread_create)
++hidden_proto (__pthread_detach)
+ hidden_proto (__pthread_key_create)
+ hidden_proto (__pthread_getspecific)
+ hidden_proto (__pthread_setspecific)

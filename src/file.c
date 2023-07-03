@@ -11,3 +11,11 @@ FILE* open_file(char *file){
 
     return fp;
 }
+
+int fsize(FILE* fp){
+    int sz;
+    fseek(fp, 0, SEEK_END);
+    sz = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    return sz;
+}

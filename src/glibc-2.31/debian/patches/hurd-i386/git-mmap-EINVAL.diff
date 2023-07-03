@@ -1,0 +1,23 @@
+Committed for 2.33
+
+commit b74233d0092c9ee6a2faee5adb375b3151bdc99c
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sat Dec 19 18:57:47 2020 +0100
+
+    hurd: Also turn KERN_INVALID_ADDRESS to EINVAL
+    
+    When e.g. mmap is passed an invalid address we would return
+    KERN_INVALID_ADDRESS, while POSIX applications would expect EINVAL.
+
+diff --git a/hurd/hurd.h b/hurd/hurd.h
+index c6e88a63c2..5fa7be5add 100644
+--- a/hurd/hurd.h
++++ b/hurd/hurd.h
+@@ -66,6 +66,7 @@ __hurd_fail (error_t err)
+       err = (error_t) ENOMEM;
+       break;
+ 
++    case KERN_INVALID_ADDRESS:
+     case KERN_INVALID_ARGUMENT:
+       err = (error_t) EINVAL;
+       break;

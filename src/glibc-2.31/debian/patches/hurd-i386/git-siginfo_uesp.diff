@@ -1,0 +1,23 @@
+Committed for 2.33
+
+commit e0aec6c83374286ffac44ee1b0e628894b7102e3
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Mon Dec 21 03:15:38 2020 +0100
+
+    hurd: Make trampoline fill siginfo ss_sp from sc_uesp
+    
+    Mach actually rather fills the uesp field, not esp.
+
+diff --git a/sysdeps/mach/hurd/i386/trampoline.c b/sysdeps/mach/hurd/i386/trampoline.c
+index 4a9cab1332..1777d0769d 100644
+--- a/sysdeps/mach/hurd/i386/trampoline.c
++++ b/sysdeps/mach/hurd/i386/trampoline.c
+@@ -63,7 +63,7 @@ static void fill_ucontext (ucontext_t *uc, const struct sigcontext *sc)
+   uc->uc_flags = 0;
+   uc->uc_link = NULL;
+   uc->uc_sigmask = sc->sc_mask;
+-  uc->uc_stack.ss_sp = (__ptr_t) sc->sc_esp;
++  uc->uc_stack.ss_sp = (__ptr_t) sc->sc_uesp;
+   uc->uc_stack.ss_size = 0;
+   uc->uc_stack.ss_flags = 0;
+ 

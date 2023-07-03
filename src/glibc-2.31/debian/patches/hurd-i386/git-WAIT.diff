@@ -1,0 +1,42 @@
+Committed for 2.33
+
+commit c57fe5462ba5eb7331a223bbb7abd8ae273747c1
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Mon Nov 23 00:24:03 2020 +0000
+
+    hurd S_msg_report_wait: Fix reporting ports
+    
+    This fixes the parameter order of MSG_EXAMINE, thus fixing the detection
+    of e.g. fd ports for nicer output in ps WAIT output.
+
+commit dba88fb3ed3e70d2ad797f447a2a894b0891a5d7
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Mon Nov 23 00:25:26 2020 +0000
+
+    hurd S_msg_report_wait: Fix detecting fd ports
+    
+    _hurd_init_dtable stays set to non-NULL, so we have to run through both
+    _hurd_init_dtable and _hurd_dtable.
+
+diff --git a/hurd/report-wait.c b/hurd/report-wait.c
+index 487a5fb05a..752d0cc1c4 100644
+--- a/hurd/report-wait.c
++++ b/hurd/report-wait.c
+@@ -77,7 +77,7 @@ describe_port (string_t description, mach_port_t port)
+ 	if (port == _hurd_init_dtable[i])
+ 	  return describe_number (description, "fd#", i);
+     }
+-  else if (_hurd_dtable)
++  if (_hurd_dtable)
+     {
+       for (i = 0; i < _hurd_dtablesize; ++i)
+ 	if (_hurd_dtable[i] == NULL)
+@@ -152,7 +152,7 @@ _S_msg_report_wait (mach_port_t msgport, thread_t thread,
+ 	      /* Blocked in a system call.  */
+ 	      if (*msgid == -25
+ 		  /* mach_msg system call.  Examine its parameters.  */
+-		  && MSG_EXAMINE (&state, msgid, &send_port, &rcv_port,
++		  && MSG_EXAMINE (&state, msgid, &rcv_port, &send_port,
+ 				  &option, &timeout) == 0)
+ 		{
+ 		  char *p;

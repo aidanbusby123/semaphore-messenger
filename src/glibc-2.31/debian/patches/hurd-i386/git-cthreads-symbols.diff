@@ -1,0 +1,38 @@
+Commited for 2.33
+
+commit f9ba73d056721ff61160a46438fd8ebf11d9aeee
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Thu Dec 3 10:48:27 2020 +0100
+
+    htl: Add missing symbols
+    
+    hurd/hurdsig.c needs to detect whether __pthread_detach and
+    __pthread_create are available, so they need to be exposed.
+
+---
+ htl/Versions  |    2 ++
+ hurd/Versions |    2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+--- a/htl/Versions
++++ b/htl/Versions
+@@ -148,6 +148,8 @@ libpthread {
+ 
+     __cthread_detach;
+     __cthread_fork;
++    __pthread_detach;
++    __pthread_create;
+     __cthread_keycreate;
+     __cthread_getspecific;
+     __cthread_setspecific;
+--- a/hurd/Versions
++++ b/hurd/Versions
+@@ -144,7 +144,7 @@ libc {
+ 
+   HURD_CTHREADS_0.3 {
+     # weak refs to libthreads functions that libc calls iff libthreads in use
+-    __cthread_fork; __cthread_detach;
++    __cthread_fork; __pthread_create; __cthread_detach; __pthread_detach;
+     __pthread_getattr_np; __pthread_attr_getstack;
+ 
+     # variables used for detecting cthreads

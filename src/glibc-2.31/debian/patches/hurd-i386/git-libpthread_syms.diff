@@ -1,0 +1,141 @@
+commited for 2.32
+
+commit bc9cf8fbe8eafe375719ad869ab81609cfc3529c
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Wed Jun 10 20:03:52 2020 +0000
+
+    htl: Fix linking static tests by factorizing the symbols list
+    
+    libpthread_syms.a will contain the symbols that libc tries to get from
+    libpthread, to be used by the system, but also by tests.
+    
+    * htl/libpthread.a, htl/libpthread_pic.a: Link libpthread_syms.a and Move EXTERN
+    references to...
+    * htl/libpthread_syms.a: ... new file. Add missing
+    __pthread_enable_asynccancel reference.
+    * htl/Makefile: Install libpthread_syms.a and link it into static tests.
+
+diff --git a/htl/Makefile b/htl/Makefile
+index 2de98e1774..c424bd512b 100644
+--- a/htl/Makefile
++++ b/htl/Makefile
+@@ -173,6 +173,7 @@ static-only-routines = pt-atfork
+ extra-libs := libpthread
+ extra-libs-others := $(extra-libs)
+ install-lib := libpthread.so
++install-lib-ldscripts := libpthread_syms.a
+ 
+ include ../Makeconfig
+ 
+@@ -180,7 +181,7 @@ CFLAGS-lockfile.c = -D_IO_MTSAFE_IO
+ 
+ all: # Make this the default target; it will be defined in Rules.
+ 
+-subdir_install: $(inst_libdir)/libpthread2.a
++subdir_install: $(inst_libdir)/libpthread2.a $(inst_libdir)/libpthread_syms.a
+ 
+ # XXX: If $(inst_libdir)/libpthread2.a is installed and
+ # $(inst_libdir)/libpthread is not, we can have some issues.
+@@ -198,6 +199,9 @@ $(inst_libdir)/libpthread2_pic.a: $(inst_libdir)/libpthread_pic.a
+ 	mv $< $@
+ 	$(INSTALL_DATA) $(srcdir)/libpthread_pic.a $<
+ 
++$(inst_libdir)/libpthread_syms.a: $(srcdir)/libpthread_syms.a $(+force)
++	$(do-install)
++
+ libc-link.so = $(common-objpfx)libc.so
+ 
+ extra-B-pthread.so = -B$(common-objpfx)htl/
+@@ -217,7 +221,7 @@ $(objpfx)tst-unload: $(libdl)
+ $(addprefix $(objpfx), $(tests-reverse)): \
+   $(objpfx)../libc.so $(objpfx)libpthread.so
+ $(objpfx)../libc.so: $(common-objpfx)libc.so ;
+-$(addprefix $(objpfx),$(tests-static) $(xtests-static)): $(objpfx)libpthread.a
++$(addprefix $(objpfx),$(tests-static) $(xtests-static)): $(srcdir)/libpthread_syms.a $(objpfx)libpthread.a
+ else
+-$(addprefix $(objpfx),$(tests) $(test-srcs)): $(objpfx)libpthread.a
++$(addprefix $(objpfx),$(tests) $(test-srcs)): $(srcdir)/libpthread_syms.a $(objpfx)libpthread.a
+ endif
+diff --git a/htl/libpthread.a b/htl/libpthread.a
+index e5bd2cc229..cfc1893b2b 100644
+--- a/htl/libpthread.a
++++ b/htl/libpthread.a
+@@ -1,22 +1,2 @@
+-/* pthread initializer is weak in glibc.  It must be included if glibc
+-   is to start threading. */
+-EXTERN(_cthread_init_routine)
+-
+-/* Weak references in glibc that must be filled if glibc is to be
+-   thread safe.  */
+-EXTERN(cthread_detach)
+-EXTERN(cthread_fork)
+-EXTERN(cthread_keycreate)
+-EXTERN(cthread_getspecific)
+-EXTERN(cthread_setspecific)
+-EXTERN(__mutex_lock_solid)
+-EXTERN(__mutex_unlock_solid)
+-/* For libio stream locking.  */
+-EXTERN(_cthreads_flockfile)
+-EXTERN(_cthreads_funlockfile)
+-EXTERN(_cthreads_ftrylockfile)
+-/* To get the sigthread stack layout on fork */
+-EXTERN(pthread_getattr_np)
+-EXTERN(pthread_attr_getstack)
+-
++GROUP(-lpthread_syms)
+ GROUP(-lpthread2 -lrt)
+diff --git a/htl/libpthread_pic.a b/htl/libpthread_pic.a
+index 33346b4b39..8794ac6dab 100644
+--- a/htl/libpthread_pic.a
++++ b/htl/libpthread_pic.a
+@@ -1,22 +1,2 @@
+-/* pthread initializer is weak in glibc.  It must be included if glibc
+-   is to start threading. */
+-EXTERN(_cthread_init_routine)
+-
+-/* Weak references in glibc that must be filled if glibc is to be
+-   thread safe.  */
+-EXTERN(cthread_detach)
+-EXTERN(cthread_fork)
+-EXTERN(cthread_keycreate)
+-EXTERN(cthread_getspecific)
+-EXTERN(cthread_setspecific)
+-EXTERN(__mutex_lock_solid)
+-EXTERN(__mutex_unlock_solid)
+-/* For libio stream locking.  */
+-EXTERN(_cthreads_flockfile)
+-EXTERN(_cthreads_funlockfile)
+-EXTERN(_cthreads_ftrylockfile)
+-/* To get the sigthread stack layout on fork */
+-EXTERN(pthread_getattr_np)
+-EXTERN(pthread_attr_getstack)
+-
++GROUP(-lpthread_syms)
+ GROUP(-lpthread2_pic)
+diff --git a/htl/libpthread_syms.a b/htl/libpthread_syms.a
+new file mode 100644
+index 0000000000..3801ec93c8
+--- /dev/null
++++ b/htl/libpthread_syms.a
+@@ -0,0 +1,21 @@
++/* pthread initializer is weak in glibc.  It must be included if glibc
++   is to start threading. */
++EXTERN(_cthread_init_routine)
++
++/* Weak references in glibc that must be filled if glibc is to be
++   thread safe.  */
++EXTERN(cthread_detach)
++EXTERN(cthread_fork)
++EXTERN(cthread_keycreate)
++EXTERN(cthread_getspecific)
++EXTERN(cthread_setspecific)
++EXTERN(__mutex_lock_solid)
++EXTERN(__mutex_unlock_solid)
++/* For libio stream locking.  */
++EXTERN(_cthreads_flockfile)
++EXTERN(_cthreads_funlockfile)
++EXTERN(_cthreads_ftrylockfile)
++/* To get the sigthread stack layout on fork */
++EXTERN(pthread_getattr_np)
++EXTERN(pthread_attr_getstack)
++EXTERN(__pthread_enable_asynccancel)

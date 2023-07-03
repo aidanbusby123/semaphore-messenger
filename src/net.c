@@ -9,7 +9,6 @@
 #include<arpa/inet.h>
 #include"common.h"
 
-#define PORT 9050
 #define LOCALHOST "127.0.0.1"
 
 int server_connect(char *addr_s, int port){ // connect to server
@@ -86,24 +85,40 @@ int server_connect(char *addr_s, int port){ // connect to server
 }
 
 int send_msg(msg message, int server_fd){ // format and send message to server
-    unsigned char *msg_buf = (unsigned char*)malloc(atoi(message.sz) + 1 + 2*strlen(MAGIC) + 1 + sizeof(int) +1 + strlen(message.recv_pub_key) + 1 + strlen(message.send_pub_key) + 1 + 2*sizeof(int) + 1 + strlen(message.checksum) + 1 + 1 + 1); // message buffer
-    char type_s[2] = {0}; // message.type string representation
-    char sz_s[2] = {0}; // message.sz string representation
+    int msg_buf_len = atoi(message.sz) + 1 + 2*strlen(MAGIC) + 1 + 2 + strlen(message.recv_pub_key) + 1 + strlen(message.send_pub_key) + 1 + strlen(message.timestamp) + 1 + strlen(message.sz) + 1 + strlen(message.checksum) + 1 + 1 + 1;
+    unsigned char *msg_buf = (unsigned char*)malloc(msg_buf_len); // message buffer
+    unsigned char type_s[2] = {0}; // message.type string representation
     // Transfer data to msg_buf
-    strcpy((char*)msg_buf, MAGIC);
-    type_s[0] = (char)message.type + '0';
-    strcat((char*)(msg_buf+1), type_s);
-    strcat((char*)(msg_buf+1), message.recv_pub_key);
-    strcat((char*)(msg_buf+1), message.send_pub_key);
-    strcat((char*)(msg_buf+1), message.timestamp);
-    strcat((char*)(msg_buf+1), type_s);
-    strcat((char*)(msg_buf+1), message.cipher);
-    strcat((char*)(msg_buf+1), message.checksum);
-    strcat((char*)(msg_buf+1), MAGIC);
-
-    int msg_buf_len = strlen((char*)msg_buf);
+    printf("msg_buf:\n");
+    strcpy(msg_buf, MAGIC);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(MAGIC) + 1;
+    type_s[0] = message.type;
+    strcat((char*)(msg_buf), type_s);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(type_s) + 1;
+    strcat((char*)(msg_buf), message.recv_pub_key);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.recv_pub_key) + 1;
+    strcat((char*)(msg_buf), message.send_pub_key);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.send_pub_key) + 1;
+    strcat((char*)(msg_buf), message.timestamp);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.timestamp) + 1;
+    strcat((char*)(msg_buf), message.sz);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.sz) + 1;
+    strcat((char*)(msg_buf), message.cipher);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.cipher);
+    strcat((char*)(msg_buf), message.checksum);
+    printf("%s\n", msg_buf);
+    msg_buf += strlen(message.checksum);
+    strcat((char*)(msg_buf), MAGIC);
+    printf("%s\n", msg_buf);
+    msg_buf = &(msg_buf[0]);
     int res = 0;
-
     while ((res = send(server_fd, msg_buf, msg_buf_len, 0)) > 0){
         if (res == -1){
             printf("message send error\n");

@@ -6,6 +6,7 @@
 #include<sys/socket.h>
 #include<sys/types.h>
 #include<sys/un.h>
+#include<openssl/sha.h>
 #include"common.h"
 
 #define PROC_SOCK "/tmp/carbide-client.sock"
@@ -39,18 +40,29 @@ int main(){
     char c;
     int i = 0;
 
-    while ((c = fgetc(priv_fp)) != EOF){ // get user private key
+    int priv_key_sz = fsize(priv_fp);
+    int pub_key_sz = fsize(pub_fp);
+
+    ctx.priv_key = malloc(priv_key_sz+1);
+    ctx.pub_key = malloc(pub_key_sz+1);
+
+    while ((c = fgetc(priv_fp)) != EOF && (i < priv_key_sz)){ // get user private key
         ctx.priv_key[i] = c;
         i++;
     }
-    ctx.priv_key[i] = 0;
+    ctx.priv_key[i] = '\0';
+    printf("%s\n", ctx.priv_key);
     i = 0;
-    while((c = fgetc(pub_fp)) != EOF){
+    while((c = fgetc(pub_fp)) != EOF && (i < pub_key_sz)){
         ctx.pub_key[i] = c;
         i++;
     }
-    ctx.pub_key[i] = 0;
+    ctx.pub_key[i] = '\0';
+    printf("%s\n", ctx.pub_key);
     i = 0;
+
+    fclose(priv_fp);
+    fclose(pub_fp);
 
     // init threads
 
@@ -83,13 +95,13 @@ int main(){
     bzero(buf, BUFLEN);
     bzero(temp_buf, BUFLEN);
 
-    msg raw_msg, out_msg;
+    msg raw_msg;
+    const int send_pub_key_len = strlen(ctx.pub_key);
+    const int send_priv_key_len = strlen(ctx.priv_key);
+    int recv_pub_key_len = 0;
     int res = 0;
     int buf_sz = 0;
-    i = 1;
-
-    raw_msg.cipher = malloc(4096/8); // allocate memory for msg ciphers
-    out_msg.cipher = malloc(4096/8);
+    i = 1; 
     // main loop, process data from proc_fd and handle program execution, send messages
     while (1){
         while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
@@ -107,7 +119,7 @@ int main(){
                 break;
             else
                 continue;
-        }
+        }    
         if (buf_sz > (2 * strlen(MAGIC) + 4)){
             if (strstr(&(buf[0]), MAGIC) == strstr(&(buf[buf_sz-3]), MAGIC) == 0){
                 // parse buffer
@@ -117,84 +129,71 @@ int main(){
 
                 if (raw_msg.type == MESSAGE){
                     // store message details from client input socket
-                    printf("Message\n");
-                    raw_msg.recv_pub_key = realloc(raw_msg.recv_pub_key, strlen(&(buf[m])));
-                    printf("pubkey-malloc\n");
-                    strcpy(raw_msg.recv_pub_key, &(buf[m]));
-                    printf("pubkey-copy\n");
-                    m += strlen(raw_msg.recv_pub_key) + 1;
-                    raw_msg.timestamp = realloc(raw_msg.timestamp, strlen(&(buf[m])));
-                    printf("timestamp-malloc\n");
-                    strcpy(raw_msg.timestamp, &(buf[m]));
-                    printf("timestamp-copy\n");
-                    m += strlen(raw_msg.timestamp) + 1;
-                    strncpy(raw_msg.sz, &(buf[m]), 4);
-                    printf("rawmsg_sz\n");
-                    m += 4 + 1;
-                    raw_msg.content = realloc(raw_msg.content, strlen(&(buf[m])));
-                    strcpy(raw_msg.content, &(buf[m]));
+                    const int cipher_sz = rsa_sz(ctx.pub_key, PUBLIC); // maximum length of RSA cipher (CA)
+                    int cipher_len;
+                    int content_len;
 
-                    raw_msg.send_pub_key = realloc(raw_msg.send_pub_key, strlen(ctx.pub_key));
-                    out_msg.recv_pub_key = realloc(out_msg.recv_pub_key, strlen(raw_msg.recv_pub_key));
-                    out_msg.send_pub_key = realloc(out_msg.send_pub_key, strlen(raw_msg.send_pub_key));
+                    raw_msg.send_pub_key = malloc(send_pub_key_len+1);
+                    raw_msg.recv_pub_key = NULL;
+
+                    //raw_msg.cipher = malloc(2 * cipher_sz+1); // hex representation of message cipher
+                    unsigned char *temp_cipher = malloc(cipher_sz + 1);
+                    raw_msg.content = malloc(KEY_SZ/8+1);
 
                     strcpy(raw_msg.send_pub_key, ctx.pub_key);
-                    strcpy(out_msg.recv_pub_key, raw_msg.recv_pub_key);
-                    strcpy(out_msg.send_pub_key, raw_msg.send_pub_key);
-                    // Encrypt certificate key (RSA)
-                    printf("waypoint-1\n");
 
-                    int cipher_sz;
-                    // move this to certificate code
-                    if ((cipher_sz = private_encrypt(raw_msg.content, atoi(raw_msg.sz)+1, ctx.priv_key, raw_msg.cipher)) == -1){ // encrypt message
-                        printf("message encryption error\n");
-                    }
-                    printf("waypoint-1.25\n");
-                    out_msg.sz[4] = 0;
-                    for (int k = 3; k >= 0; k--){
-                        out_msg.sz[k] = (cipher_sz % 10) + '0';
-                        cipher_sz /= 10;
-                    }
-                    printf("waypoint-1.5\n");
-                    int out_msg_sz = atoi(out_msg.sz);
-                    for (int k = 0; k < out_msg_sz; k++){ // store cipher in out_msg
-                        m = k;
-                        out_msg.cipher[k] = raw_msg.cipher[k] + '0';
-                    }
-                    out_msg.cipher[++m] = 0;
+                    //allocate mem for reciever pub key
+                    recv_pub_key_len = strlen(&(buf[m]));
+                    raw_msg.recv_pub_key = realloc(raw_msg.recv_pub_key, recv_pub_key_len+1);
+                    strcpy(raw_msg.recv_pub_key, &(buf[m]));
 
-                    printf("waypoint-2\n");
+                    m += recv_pub_key_len + 1;
 
-                    unsigned char *temp = malloc(strlen(raw_msg.content) + strlen(raw_msg.send_pub_key) + 1);
+                    strcpy(raw_msg.timestamp, &(buf[m]));
+                    m += strlen(raw_msg.timestamp) + 1;
+                    
+                    strncpy(raw_msg.sz, &(buf[m]), 4);
+                    m += strlen(raw_msg.sz) + 1;
+                    
+                    if ((strlen(&(buf[m]))+2*SHA256_DIGEST_LENGTH) > KEY_SZ/8){
+                        printf("Certificate contents too large!\n");
+                        return -1;
+                    }
+                    strcpy(raw_msg.content, &(buf[m]));
+                    content_len = strlen(raw_msg.content);
+
+                    strcpy(raw_msg.send_pub_key, ctx.pub_key);
+                    // Encrypt certificate key (RSA)        
+                    unsigned char *temp = malloc(content_len + send_pub_key_len + 1);
                     strcpy(temp, raw_msg.content);
                     strcat(temp, raw_msg.send_pub_key);
 
-                    unsigned char **temp_checksum = sha256(temp, (size_t)raw_msg.sz, NULL);
+                    unsigned char *temp_checksum = sha256(temp, (size_t)(content_len+send_pub_key_len), NULL);
+                    strcpy(raw_msg.checksum, temp_checksum);
+                    strcat(raw_msg.content, raw_msg.checksum);
 
-                    for (int k = 0; k < 32; k++){
-                        out_msg.checksum[i] = *temp_checksum[i] + '0';
+                    content_len = content_len + SHA256_DIGEST_LENGTH*2;
+
+                    if ((cipher_len = public_encrypt(raw_msg.content, content_len, ctx.pub_key, temp_cipher)) == -1){ // encrypt message
+                        printf("message encryption error\n");
                     }
-                    out_msg.checksum[32] = 0;
 
-                    strcpy(out_msg.timestamp, raw_msg.timestamp);
+                    raw_msg.cipher = char_to_hex(temp_cipher);
 
-                    send_msg(out_msg, ctx.server_fd);
-
+                    for (int k = 3; k >= 0; k--){
+                        raw_msg.sz[k] = cipher_len % 10 + '0';
+                        cipher_len /= 10;
+                    }
+                    raw_msg.sz[4] = 0;
+                    send_msg(raw_msg, ctx.server_fd);
                     memset(&raw_msg, 0, sizeof(raw_msg));
-                    memset(&out_msg, 0, sizeof(out_msg));
                 }
                 if(raw_msg.type == CON){
                     printf("Connect\n");
                     char addr[256] = {0};
-                    char port_s[5] = {0};
-                    int port;
-                    strncpy(addr,&(buf[m]), 256);
-                    m += strlen(addr);
-                    strncpy(port_s, &(buf[m]), 5);
-                    m += 5;
-                    port = atoi(port_s);
-
-                    if ((ctx.server_fd = server_connect(addr, port)) < 0){
+                    strncpy(addr, &(buf[m]), 256);
+                    m += strlen(addr) + 1;
+                    if ((ctx.server_fd = server_connect(addr, PORT)) < 0){
                         printf("server connection error!\n");
                     }
                 }
@@ -214,3 +213,4 @@ void exit_func(ctx *exit_ctx){
     close(exit_ctx->ui_sock);
     close(exit_ctx->server_fd);
 }
+

@@ -1,0 +1,25 @@
+Commited for 2.32
+
+commit e2b9d562d1e024fda6d10f0f272521bf20fa664f
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Jun 14 15:47:14 2020 +0000
+
+    htl: initialize first and prevent from unloading
+    
+    libc does not have codepaths for reverting the load of a libpthread.
+    
+    * htl/Makefile (LDFLAGS-pthread.so): Pass -z nodelete -z initfirst to
+    linker.
+
+diff --git a/htl/Makefile b/htl/Makefile
+index c424bd512b..326a920fb3 100644
+--- a/htl/Makefile
++++ b/htl/Makefile
+@@ -205,6 +205,7 @@ $(inst_libdir)/libpthread_syms.a: $(srcdir)/libpthread_syms.a $(+force)
+ libc-link.so = $(common-objpfx)libc.so
+ 
+ extra-B-pthread.so = -B$(common-objpfx)htl/
++LDFLAGS-pthread.so = -Wl,--enable-new-dtags,-z,nodelete,-z,initfirst
+ 
+ include ../Rules
+ 

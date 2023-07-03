@@ -1,0 +1,191 @@
+Committed for 2.33
+
+commit f6abd970284a06380cd9d905f43da104bd49fc95 (HEAD -> master, jolly/master)
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Mon Dec 28 23:37:04 2020 +0100
+
+    hurd: Add WSTOPPED/WCONTINUED/WEXITED/WNOWAIT support [BZ #23091]
+
+    The new __proc_waitid RPC now expects WEXITED to be passed, allowing to
+    properly implement waitid, and thus define the missing W* macros
+    (according to FreeBSD values).
+
+Index: glibc-2.31/bits/waitflags.h
+===================================================================
+--- glibc-2.31.orig/bits/waitflags.h
++++ glibc-2.31/bits/waitflags.h
+@@ -25,3 +25,11 @@
+ /* Bits in the third argument to `waitpid'.  */
+ #define	WNOHANG		1	/* Don't block waiting.  */
+ #define	WUNTRACED	2	/* Report status of stopped children.  */
++
++/* Bits in the fourth argument to `waitid'.  */
++#if defined __USE_XOPEN_EXTENDED || defined __USE_XOPEN2K8
++# define WSTOPPED	WUNTRACED	/* Report stopped child. */
++# define WCONTINUED	4		/* Report continued child.  */
++# define WNOWAIT	8		/* Don't reap, just poll status.  */
++# define WEXITED	16		/* Report dead child.  */
++#endif
+Index: glibc-2.31/sysdeps/mach/hurd/waitid.c
+===================================================================
+--- /dev/null
++++ glibc-2.31/sysdeps/mach/hurd/waitid.c
+@@ -0,0 +1,124 @@
++/* Implementation of waitid.  Hurd version.
++   Copyright (C) 1997-2020 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++   Contributed by Zack Weinberg <zack@rabi.phys.columbia.edu>, 1997.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <errno.h>
++#include <sys/types.h>
++#include <sys/wait.h>
++#include <stddef.h>
++#include <hurd.h>
++#include <hurd/port.h>
++#include <hurd/version.h>
++#include <sysdep-cancel.h>
++
++int
++__waitid (idtype_t idtype, id_t id, siginfo_t *infop, int options)
++{
++  struct rusage ignored;
++  error_t err;
++  pid_t pid, child;
++  int sigcode;
++  int status;
++
++  switch (idtype)
++    {
++    case P_PID:
++      if (id <= 0)
++	goto invalid;
++      pid = (pid_t) id;
++      break;
++    case P_PGID:
++      if (id < 0 || id == 1)
++	goto invalid;
++      pid = (pid_t) -id;
++      break;
++    case P_ALL:
++      pid = -1;
++      break;
++    default:
++    invalid:
++      __set_errno (EINVAL);
++      return -1;
++    }
++
++  /* Technically we're supposed to return EFAULT if infop is bogus,
++     but that would involve mucking with signals, which is
++     too much hassle.  User will have to deal with SIGSEGV/SIGBUS.
++     We just check for a null pointer. */
++
++  if (infop == NULL)
++    {
++      __set_errno (EFAULT);
++      return -1;
++    }
++
++#if HURD_INTERFACE_VERSION >= 20201227
++  err = __USEPORT (PROC, __proc_waitid (port, pid, options,
++					&status, &sigcode,
++					&ignored, &child));
++  if (err == MIG_BAD_ID || err == EOPNOTSUPP)
++#endif
++    err = __USEPORT (PROC, __proc_wait (port, pid, options,
++					&status, &sigcode,
++					&ignored, &child));
++
++  if (err == EAGAIN)
++    {
++      /* POSIX.1-2008, Technical Corrigendum 1 XSH/TC1-2008/0713 [153] states
++	 that if waitid returns because WNOHANG was specified and status is
++	 not available for any process specified by idtype and id, then the
++	 si_signo and si_pid members of the structure pointed to by infop
++	 shall be set to zero.  */
++      infop->si_signo = 0;
++      infop->si_code = 0;
++      return 0;
++    }
++
++  if (err != 0)
++    return __hurd_fail (err);
++
++  /* Decode the status field and set infop members... */
++  infop->si_signo = SIGCHLD;
++  infop->si_pid = child;
++  infop->si_errno = 0;
++
++  if (WIFEXITED (status))
++    {
++      infop->si_code = CLD_EXITED;
++      infop->si_status = WEXITSTATUS (status);
++    }
++  else if (WIFSIGNALED (status))
++    {
++      infop->si_code = WCOREDUMP (status) ? CLD_DUMPED : CLD_KILLED;
++      infop->si_status = WTERMSIG (status);
++    }
++  else if (WIFSTOPPED (status))
++    {
++      infop->si_code = CLD_STOPPED;
++      infop->si_status = WSTOPSIG (status);
++    }
++  else if (WIFCONTINUED (status))
++    {
++      infop->si_code = CLD_CONTINUED;
++      infop->si_status = SIGCONT;
++    }
++
++  return 0;
++}
++weak_alias (__waitid, waitid)
++strong_alias (__waitid, __libc_waitid)
+Index: glibc-2.31/conform/data/sys/wait.h-data
+===================================================================
+--- glibc-2.31.orig/conform/data/sys/wait.h-data
++++ glibc-2.31/conform/data/sys/wait.h-data
+@@ -8,8 +8,7 @@ constant WUNTRACED
+ 
+ macro WEXITSTATUS
+ # if !defined XPG4 && !defined POSIX && !defined POSIX2008
+-// Bug 23091: hurd: missing waitid support.
+-xfail[i386-gnu]-macro WIFCONTINUED
++macro WIFCONTINUED
+ # endif
+ macro WIFEXITED
+ macro WIFSIGNALED
+@@ -17,15 +16,14 @@ macro WIFSTOPPED
+ macro WSTOPSIG
+ macro WTERMSIG
+ 
+-// Bug 23091: hurd: missing waitid support.
+ # if !defined XPG4 && !defined POSIX
+-xfail[i386-gnu]-constant WEXITED
+-xfail[i386-gnu]-constant WSTOPPED
++constant WEXITED
++constant WSTOPPED
+ #  ifndef POSIX2008
+-xfail[i386-gnu]-constant WCONTINUED
++constant WCONTINUED
+ #  endif
+ constant WNOHANG
+-xfail[i386-gnu]-constant WNOWAIT
++constant WNOWAIT
+ # endif
+ 
+ #if !defined XPG4 && !defined POSIX

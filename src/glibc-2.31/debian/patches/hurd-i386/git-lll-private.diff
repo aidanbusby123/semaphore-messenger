@@ -1,0 +1,22 @@
+Commited for 2.33
+
+commit bcbabb9e6c14db9f35ed83862e88a6d986fc7a69
+Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Date:   Sun Dec 13 13:31:22 2020 +0000
+
+    hurd: Add LLL_PRIVATE and LLL_SHARED
+
+diff --git a/mach/lowlevellock.h b/mach/lowlevellock.h
+index b872d0fe1e..9798d153cf 100644
+--- a/mach/lowlevellock.h
++++ b/mach/lowlevellock.h
+@@ -34,6 +34,9 @@
+ /* Static initializer for low-level locks.  */
+ #define LLL_LOCK_INITIALIZER   0
+ 
++#define LLL_PRIVATE        0
++#define LLL_SHARED         SYNC_SHARED
++
+ /* Interruptible version of __gsync_wait.  */
+ extern kern_return_t __gsync_wait_intr
+ (
