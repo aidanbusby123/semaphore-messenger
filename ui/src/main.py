@@ -21,20 +21,33 @@ def connect():
     addr = connect_entry.get()
     addr_len = len(addr)
     type_data = 3
-    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (addr+"\0").encode() + (port+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
+    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (addr+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
     client.sendall(message)
 
 def send_message():
     message_content = message_entry.get()
     message_len = len(message_content)
     type_data = 1
-    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (destkey+"\0").encode() + (str(time.time())+"\0").encode() + (str(message_len)+"\0").encode() + (message_content+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
+    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (destkey+"\0").encode() + (str(int(time.time()))+"\0").encode() + (str(message_len)+"\0").encode() + (message_content+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
     client.sendall(message)
+
+def connect_window():
+    win = tk.Toplevel(window)
     
 window = tk.Tk()
 
 window.title("Carbide Messenger")
 window.geometry("800x600+0+0")
+
+window.option_add('*tearOff', tk.FALSE)
+
+menubar = tk.Menu(window)
+window['menu'] = menubar
+
+options_menu = tk.Menu(menubar)
+menubar.add_cascade(menu=options_menu, label='Options')
+
+options_menu.add_command(label='Connect', command=connect_window)
 
 window.rowconfigure(0, weight=1)
 window.columnconfigure(0, weight=1, minsize=150)
