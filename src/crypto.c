@@ -15,7 +15,7 @@ RSA* createRSA(unsigned char* key, int type){
     BIO* keybio = BIO_new_mem_buf(key, -1);
     if (keybio == NULL){
         printf("unable to create key BIO\n");
-        return 0;
+        return NULL;
     }
     if (type == PUBLIC){
         rsa = PEM_read_bio_RSA_PUBKEY(keybio, &rsa, NULL, NULL);
@@ -24,6 +24,7 @@ RSA* createRSA(unsigned char* key, int type){
     }
     if (rsa == NULL){
         printf("failed to create RSA\n");
+        return NULL;
     }
     return rsa;
 }
@@ -31,6 +32,9 @@ RSA* createRSA(unsigned char* key, int type){
 int public_encrypt(unsigned char * data,int data_len,unsigned char * key, unsigned char *encrypted){
     RSA * rsa = createRSA(key, PUBLIC);
     int result = RSA_public_encrypt(data_len,data,encrypted,rsa,padding);
+    if (result == -1){
+        printf("%s", ERR_error_string(ERR_get_error(), NULL));
+    }
     return result;
 }
 int private_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, unsigned char *decrypted){
@@ -40,7 +44,6 @@ int private_decrypt(unsigned char * enc_data,int data_len,unsigned char * key, u
 }
 int private_encrypt(unsigned char * data,int data_len,unsigned char * key, unsigned char *encrypted){
     RSA * rsa = createRSA(key, PRIVATE);
-    printf("created rsa\n");
     int result = RSA_private_encrypt(data_len,data,encrypted,rsa,padding);
     if (result == -1){
         printf("%s", ERR_error_string(ERR_get_error(), NULL));

@@ -18,7 +18,8 @@ void exit_func(ctx *exit_ctx);
 int main(){
     // define variables
     int proc_fd; // process file descriptor
-    char *buf;
+    char *buf; // main input buffer
+    char *buf_start; // starting pointer of buffer mem
     char temp_buf[BUFLEN];
     ctx ctx;
 
@@ -92,6 +93,7 @@ int main(){
     ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
 
     buf = malloc(BUFLEN*sizeof(char));
+    buf_start = buf;
     bzero(buf, BUFLEN);
     bzero(temp_buf, BUFLEN);
 
@@ -104,8 +106,9 @@ int main(){
     i = 1; 
     // main loop, process data from proc_fd and handle program execution, send messages
     while (1){
-        while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
+        while ((res = read(ctx.ui_sock, buf_start + ((i-1) * BUFLEN), BUFLEN))){
             buf = realloc(buf, BUFLEN*(i+1));
+            buf_start = buf;
             printf("%s\n", buf);
             for (int k = 0; k < BUFLEN; k++){
                 if (buf[k+BUFLEN*(i-1)] == '\n'){
@@ -121,7 +124,6 @@ int main(){
                 continue;
         }    
         if (buf_sz > (2 * strlen(MAGIC) + 4)){
-            if (strstr(&(buf[0]), MAGIC) == strstr(&(buf[buf_sz-3]), MAGIC) == 0){
                 // parse buffer
                 int m = 3;
                 raw_msg.type = buf[m] - '0';
@@ -136,7 +138,8 @@ int main(){
                     raw_msg.send_pub_key = malloc(send_pub_key_len+1);
                     raw_msg.recv_pub_key = NULL;
 
-                    //raw_msg.cipher = malloc(2 * cipher_sz+1); // hex representation of message cipher
+                    //raw_msg.cipher = calloc(2 * cipher_sz+1, 1); // hex representation of message cipher
+                    raw_msg.cipher = NULL;
                     unsigned char *temp_cipher = malloc(cipher_sz + 1);
                     raw_msg.content = malloc(KEY_SZ/8+1);
 
@@ -149,7 +152,8 @@ int main(){
 
                     m += recv_pub_key_len + 1;
 
-                    strcpy(raw_msg.timestamp, &(buf[m]));
+                    strncpy(raw_msg.timestamp, &(buf[m]), sizeof(raw_msg.timestamp)-2);
+                    raw_msg.timestamp[sizeof(raw_msg.timestamp)-1] = 0;
                     m += strlen(raw_msg.timestamp) + 1;
                     
                     strncpy(raw_msg.sz, &(buf[m]), 4);
@@ -168,7 +172,7 @@ int main(){
                     strcpy(temp, raw_msg.content);
                     strcat(temp, raw_msg.send_pub_key);
 
-                    unsigned char *temp_checksum = sha256(temp, (size_t)(content_len+send_pub_key_len), NULL);
+                    unsigned char *temp_checksum = sha256(temp, (size_t)(content_len+send_pub_key_len+1), NULL);
                     strcpy(raw_msg.checksum, temp_checksum);
                     strcat(raw_msg.content, raw_msg.checksum);
 
@@ -177,15 +181,15 @@ int main(){
                     if ((cipher_len = public_encrypt(raw_msg.content, content_len, ctx.pub_key, temp_cipher)) == -1){ // encrypt message
                         printf("message encryption error\n");
                     }
-
                     raw_msg.cipher = char_to_hex(temp_cipher);
-
+                    cipher_len *= 2;
                     for (int k = 3; k >= 0; k--){
                         raw_msg.sz[k] = cipher_len % 10 + '0';
                         cipher_len /= 10;
                     }
                     raw_msg.sz[4] = 0;
                     send_msg(raw_msg, ctx.server_fd);
+
                     memset(&raw_msg, 0, sizeof(raw_msg));
                 }
                 if(raw_msg.type == CON){
@@ -198,12 +202,11 @@ int main(){
                     }
                 }
 
-            }
         }
-        bzero(&(buf[0]), (BUFLEN*i));
+        bzero(buf_start, (BUFLEN*i));
         i = 1;
-        buf = &(buf[0]);
-        buf_sz = 0;
+        buf = buf_start;
+        //buf_sz = 0;
     }
 }
 

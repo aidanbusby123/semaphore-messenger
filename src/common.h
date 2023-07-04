@@ -20,7 +20,7 @@ typedef struct msg{
     unsigned char type;
     unsigned char *recv_pub_key; // receiver (user) public key
     unsigned char *send_pub_key; // sender public key
-    unsigned char timestamp[9]; // timestamp of message
+    unsigned char timestamp[21]; // timestamp of message
     unsigned char sz[5];
     unsigned char checksum[SHA256_DIGEST_LENGTH*2+1];
     unsigned char *cipher; // encrypted message
@@ -45,7 +45,7 @@ int rsa_sz(unsigned char* key, int type);
 
 unsigned char* sha256(unsigned char *d, size_t n, unsigned char *md);
 
-unsigned char* char_to_hex(unsigned char *s); // convert raw char array to hex representation
+unsigned char* char_to_hex(unsigned char *s); // convert raw char array to hex representatio
 
 int send_msg(msg message, int server_fd); // send message
 
