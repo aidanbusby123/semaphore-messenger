@@ -33,6 +33,16 @@ def send_message():
 
 def connect_window():
     win = tk.Toplevel(window)
+
+    input_label = tk.Label(win, text="Server address")
+    input_label.grid(row=0, column=0)
+
+    input_entry = tk.Entry(win, width=100)
+    input_entry.grid(row=1, column=0)
+
+    input_button = tk.Button(win, text="Submit", command=lambda: [win.destroy(), connect()])
+    input_button.grid(row=1, column = 1)
+
     
 window = tk.Tk()
 
