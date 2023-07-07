@@ -67,3 +67,27 @@ unsigned char* sha256(unsigned char *d, size_t n, unsigned char *md){ // return 
     unsigned char* hash = SHA256(d, n, md);
     return hash;
 }
+
+FILE *cert_gen(msg *msg, ctx *ctx){
+    X509 *cert;
+    cert = X509_new();
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
+
+    X509_gmtime_adj(X509_get_notBefore(cert), 0);
+    X509_gmtime_adj(X509_get_notAfter(cert), 31536000L);
+
+    X509_set_pubkey(cert, ctx->pub_key);
+
+    X509_NAME *name;
+    name =  X509_get_subject_name(cert);
+
+    X509_NAME_add_entry_by_txt(name, "sender_address", MBSTRING_ASC, msg->send_addr, -1, -1, 0);
+    X509_set_issuer_name(cert, name);
+    
+    X509_sign(cert, ctx->pub_key, EVP_sha256());
+
+    FILE *fp;
+    fp = fopen("cert.pem", "wb");
+    PEM_write_X509(fp, cert);
+    return fp;
+}

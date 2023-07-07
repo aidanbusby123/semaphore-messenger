@@ -53,18 +53,11 @@ int main(){
     ctx.priv_key = malloc(priv_key_sz+2);
     ctx.pub_key = malloc(pub_key_sz+2);
 
-    while ((c = fgetc(priv_fp)) != EOF && (i < priv_key_sz)){ // get user private key
-        ctx.priv_key[i] = c;
-        i++;
-    }
-    ctx.priv_key[i] = '\0';
-    i = 0;
-    while((c = fgetc(pub_fp)) != EOF && (i < pub_key_sz)){
-        ctx.pub_key[i] = c;
-        i++;
-    }
-    ctx.pub_key[i] = '\0';
-    i = 0;
+    fread(ctx.priv_key, sizeof(char), priv_key_sz, priv_fp);
+    ctx.priv_key[priv_key_sz] = '\0';
+    
+    fread(ctx.pub_key, sizeof(char), pub_key_sz, pub_fp);
+    ctx.pub_key[pub_key_sz] = '\0';
 
     fclose(priv_fp);
     fclose(pub_fp);
@@ -100,6 +93,9 @@ int main(){
 
     ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
 
+    unsigned int sz;
+    unsigned char checksum[SHA256_SZ];
+    unsigned char *cipher; // encrypted message
     buf = malloc(BUFLEN*sizeof(char));
     buf_start = buf;
     bzero(buf, BUFLEN);
@@ -138,16 +134,26 @@ int main(){
                 raw_msg.type = buf[m];
                 m+=1;
 
-                if (raw_msg.type == MESSAGE){
-                    // store message details from client input socket
-                    const int cipher_sz = rsa_sz(ctx.pub_key, PUBLIC); // maximum length of RSA cipher (CA)
+                if (raw_msg.type == CA){
+                    // send x509 certificate
+                    FILE *cert_fp = cert_gen(&raw_msg, &ctx);
+                    int cert_sz = fsize(cert_fp);
+
+                    raw_msg.sz = cert_sz;
+                    raw_msg.content = malloc(raw_msg.sz + 1);
+                    fread(raw_msg.content, sizeof(char), raw_msg.sz, cert_fp);
+                }
+                if (raw_msg.type = KEYPR){
+
+                    // send RSA 
+                    int cipher_sz = rsa_sz(ctx.pub_key, PUBLIC); // maximum length of RSA cipher (CA)
                     int cipher_len;
                     int content_len;
 
-                    raw_msg.cipher = calloc(cipher_sz+1, 1); // hex representation of message cipher
+                    raw_msg.content = calloc(cipher_sz+1, 1); // hex representation of message cipher
                     //raw_msg.cipher = NULL;
                     unsigned char *temp_cipher = malloc(cipher_sz + 1);
-                    raw_msg.content = malloc(KEY_SZ/8+1);
+                    unsigned char *temp_content = malloc(KEY_SZ/8+1);
 
                     memcpy(raw_msg.recv_addr, &(buf[m]), SHA256_SZ);
     
@@ -163,25 +169,27 @@ int main(){
                         printf("Certificate contents too large!\n");
                         return -1;
                     }
-                    memcpy(raw_msg.content, &(buf[m]), content_len);
-                    raw_msg.content[content_len] = 0;
+                    memcpy(temp_content, &(buf[m]), content_len);
+                    temp_content[content_len] = 0;
                     // Encrypt certificate key (RSA)        
                     unsigned char *temp = malloc(content_len + SHA256_SZ + 1);
-                    memcpy(temp, raw_msg.content, content_len);
+                    memcpy(temp, temp_content, content_len);
                     memcpy(temp+content_len, raw_msg.send_addr, SHA256_SZ);
 
                     unsigned char *temp_checksum = sha256(temp, (size_t)(content_len + SHA256_SZ), NULL);
-                    memcpy(&raw_msg.content[content_len], temp_checksum, SHA256_SZ);
+                    memcpy(&temp_content[content_len], temp_checksum, SHA256_SZ);
                     content_len = content_len + SHA256_SZ;
                     
-                    if ((cipher_len = public_encrypt(raw_msg.content, content_len, ctx.pub_key, raw_msg.cipher)) == -1){ // encrypt message
+                    memcpy(temp_content, ctx.pub_key, KEY_SZ);
+                    if ((cipher_len = public_encrypt(temp_content, content_len, ctx.pub_key, temp_cipher)) == -1){ // encrypt message
                         printf("message encryption error\n");
                     }
+                    
                     raw_msg.sz = cipher_len;
-                    printf("sending message\n");
+                    raw_msg.content = temp_cipher;
                     send_msg(raw_msg, ctx.server_fd);
-                    free(raw_msg.cipher);
                     free(raw_msg.content);
+
                 } else if(raw_msg.type == CON){
                     printf("Connect\n");
                     char addr[256] = {0};

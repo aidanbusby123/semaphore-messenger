@@ -116,7 +116,7 @@ int send_msg(msg message, int server_fd){ // format and send message to server
     msg_buf += sizeof(message.timestamp);
     memcpy(msg_buf, &message.sz, sizeof(message.sz));
     msg_buf += sizeof(message.sz);
-    memcpy(msg_buf, message.cipher, message.sz);
+    memcpy(msg_buf, message.content, message.sz);
     msg_buf += message.sz;
     memcpy(msg_buf, message.checksum, SHA256_SZ);
     msg_buf += SHA256_SZ;

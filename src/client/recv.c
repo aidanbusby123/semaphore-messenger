@@ -7,6 +7,7 @@
 
 void *recv_msg(void *arg){ // handle the reception of messages
     ctx *ctx_p; //ctx pointer
+    msg in_msg;
     unsigned char *buf;
     unsigned char *buf_start;
     int res;
@@ -15,6 +16,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
     int i = 1;
 
     ctx_p = ((ctx*)arg);
+
     buf = malloc(BUFLEN);
     buf_start = buf;
 
@@ -37,6 +39,26 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         break;
                     } else {
                         continue;
+                    }
+                }
+            }
+            if (buf_len > (2 * sizeof(MAGIC) + 4)){
+                int m = 2;
+                in_msg.type = buf[m];
+                m += sizeof(in_msg.type);
+
+                if (in_msg.type == CA){
+                    if (buf_len > (sizeof(MAGIC) + sizeof(in_msg.type) + SHA256_SZ * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sz) + SHA256_SZ + sizeof(MAGIC))){
+                        m += SHA256_SZ;
+                        memcpy(in_msg.send_addr, &buf[m], SHA256_SZ);
+                        m += SHA256_SZ;
+                        memcpy(in_msg.timestamp, &buf[m], sizeof(in_msg.timestamp));
+                        m += sizeof(in_msg.timestamp);
+                        memcpy(in_msg.sz, &buf[m], sizeof(in_msg.sz));
+                        m += sizeof(in_msg.sz);
+                        memcpy(in_msg.content, &buf[m], in_msg.sz);
+                        m += in_msg.sz;
+                        memcpy(in_msg.checksum, &buf[m], sizeof(in_msg.checksum));
                     }
                 }
             }
