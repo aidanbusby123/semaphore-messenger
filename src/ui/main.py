@@ -2,8 +2,9 @@ import tkinter as tk
 import socket
 import time
 import atexit
+from hashlib import sha256
 
-MAGIC = "0310"
+MAGIC = "69 69"
 
 socket_path = "/tmp/carbide-client.sock"
 
@@ -21,14 +22,14 @@ def connect(connect_entry):
     addr = connect_entry
     addr_len = len(addr)
     type_data = 3
-    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (addr+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
+    message = (bytearray.fromhex(MAGIC).decode()).encode() + int(type_data).to_bytes(1, 'little') + str(addr).encode() + "\0".encode() + (bytearray.fromhex(MAGIC).decode()).encode() + "\0".encode()
     client.sendall(message)
 
 def send_message(event=None):
     message_content = message_entry.get()
     message_len = len(message_content)
     type_data = 1
-    message = (bytearray.fromhex(MAGIC).decode()+"\0").encode() + (str(type_data)+"\0").encode() + (destkey+"\0").encode() + (str(int(time.time()))+"\0").encode() + (str(message_len)+"\0").encode() + (message_content+"\0").encode() + (bytearray.fromhex(MAGIC).decode()+"\0").encode() + "\n\0".encode()
+    message = (bytearray.fromhex(MAGIC).decode()).encode() + int(type_data).to_bytes(1, 'little') + (sha256(destkey.encode())).digest() + int(time.time()).to_bytes(4, 'little') + message_len.to_bytes(4, 'little') + (message_content).encode() + (bytearray.fromhex(MAGIC).decode()).encode() + "\0".encode()
     client.sendall(message)
     message_entry.delete(0, tk.END)
 

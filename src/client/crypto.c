@@ -8,7 +8,7 @@
 #include <openssl/err.h>
 #include"common.h"
 
-int padding = RSA_PKCS1_PADDING;
+const int padding = RSA_PKCS1_PADDING;
 
 RSA* createRSA(unsigned char* key, int type){
     RSA *rsa = NULL;
@@ -64,19 +64,6 @@ int rsa_sz(unsigned char* key, int type){
 }
 
 unsigned char* sha256(unsigned char *d, size_t n, unsigned char *md){ // return string version of sha256 hash
-    unsigned char* hash_temp = SHA256(d, n, md);
-    unsigned char* hash = malloc(2 * SHA256_DIGEST_LENGTH + 1);
-    hash = char_to_hex(hash_temp);
-    hash[2*SHA256_DIGEST_LENGTH] = 0;
+    unsigned char* hash = SHA256(d, n, md);
     return hash;
-}
-
-unsigned char* char_to_hex(unsigned char *s){
-    int sz = strlen(s);
-    unsigned char *hex = malloc(2 * sz + 1);
-    for (int i = 0; i < sz; i++){
-        hex[2 * i] = ((s[i]/16) >= 10) ? ('a' + s[i]/16 - 10) : (s[i] / 16) + '0';
-        hex[2 * i + 1] = ((s[i] - ((s[i]/16) * 16)) >= 10) ? ('a' + (s[i] - ((s[i]/16) * 16)) - 10) : s[i] - (s[i]/16) * 16 + '0';
-    }
-    return hex;
 }
