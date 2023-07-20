@@ -2,10 +2,17 @@
 #include<stdlib.h>
 #include<string.h>
 #include<unistd.h>
+#include<time.h>
 #include<pthread.h>
 #include<sys/socket.h>
 #include<sys/types.h>
 #include<sys/un.h>
+#include<openssl/ssl.h>
+#include<openssl/sha.h>
+#include<openssl/rsa.h>
+#include<openssl/evp.h>
+#include<openssl/bio.h>
+#include<openssl/rand.h>
 #include"common.h"
 
 #define PROC_SOCK "/tmp/carbide-client.sock"
@@ -50,22 +57,39 @@ int main(){
     int priv_key_sz = fsize(priv_fp);
     int pub_key_sz = fsize(pub_fp);
 
-    ctx.priv_key = malloc(priv_key_sz+2);
-    ctx.pub_key = malloc(pub_key_sz+2);
+    ctx.rsa_priv_key_s = malloc(priv_key_sz+1);
+    ctx.rsa_pub_key_s = malloc(pub_key_sz+1);
 
-    fread(ctx.priv_key, sizeof(char), priv_key_sz, priv_fp);
-    ctx.priv_key[priv_key_sz] = '\0';
+    fread(ctx.rsa_priv_key_s, sizeof(unsigned char), priv_key_sz, priv_fp);
+    ctx.rsa_priv_key_s[priv_key_sz] = 0;
     
-    fread(ctx.pub_key, sizeof(char), pub_key_sz, pub_fp);
-    ctx.pub_key[pub_key_sz] = '\0';
+    fread(ctx.rsa_pub_key_s, sizeof(unsigned char), pub_key_sz, pub_fp);
+    ctx.rsa_pub_key_s[pub_key_sz] = 0;
+
+    ctx.rsa_priv_key = createRSA(ctx.rsa_priv_key_s, PRIVATE);
+    ctx.rsa_pub_key = createRSA(ctx.rsa_pub_key_s, PUBLIC);
 
     fclose(priv_fp);
     fclose(pub_fp);
 
-    ctx.addr = sha256(ctx.pub_key, strlen(ctx.pub_key), NULL);
+    ctx.addr = SHA256(ctx.rsa_pub_key_s, strlen(ctx.rsa_pub_key_s), NULL);
 
+    ctx.pubkeys = NULL;
+    ctx.pubkey_count = 0;
+    ctx.aes_keys = NULL;
+    ctx.keyring_sz = 0;
+
+    if (load_pubkeys(&ctx) == -1){
+        printf("Error: loading pubkeys failed\n");
+        return -1;
+    }
+    if (load_keys(&ctx) == -1){
+        printf("Error: loading keys failed\n");
+        return -1;
+    }
     if ((res = pthread_create(&recv_thread, NULL, recv_msg, (void*)&ctx)) != 0){ // create recieving thread
-        printf("failed to initialize recv_thread");
+        printf("Error: failed to initialize recv_thread");
+        return -1;
     }
 
     if ((proc_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){ // create socket to allow communication between UI and client process
@@ -94,7 +118,7 @@ int main(){
     ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
 
     unsigned int sz;
-    unsigned char checksum[SHA256_SZ];
+    unsigned char checksum[SHA256_DIGEST_LENGTH];
     unsigned char *cipher; // encrypted message
     buf = malloc(BUFLEN*sizeof(char));
     buf_start = buf;
@@ -103,7 +127,7 @@ int main(){
 
     msg raw_msg;
 
-    raw_msg.recv_addr = malloc(SHA256_SZ + 1);
+    raw_msg.recv_addr = malloc(SHA256_DIGEST_LENGTH+1);
     raw_msg.send_addr = ctx.addr;
 
     int buf_sz = 1;
@@ -120,7 +144,7 @@ int main(){
                 buf_sz++;
                 i++;
             } else {
-                if (memcmp(buf + buf_len - sizeof(MAGIC) - 1, MAGIC, sizeof(MAGIC)) == 0){
+                if (memcmp(buf + buf_len - sizeof(MAGIC), MAGIC, sizeof(MAGIC)) == 0){
                     break;
                 } else{
                     continue;
@@ -133,62 +157,24 @@ int main(){
                 int m = 2;
                 raw_msg.type = buf[m];
                 m+=1;
-
-                if (raw_msg.type == CA){
-                    // send x509 certificate
-                    FILE *cert_fp = cert_gen(&raw_msg, &ctx);
-                    int cert_sz = fsize(cert_fp);
-
-                    raw_msg.sz = cert_sz;
-                    raw_msg.content = malloc(raw_msg.sz + 1);
-                    fread(raw_msg.content, sizeof(char), raw_msg.sz, cert_fp);
-                }
-                if (raw_msg.type = KEYPR){
-
-                    // send RSA 
-                    int cipher_sz = rsa_sz(ctx.pub_key, PUBLIC); // maximum length of RSA cipher (CA)
-                    int cipher_len;
-                    int content_len;
-
-                    raw_msg.content = calloc(cipher_sz+1, 1); // hex representation of message cipher
-                    //raw_msg.cipher = NULL;
-                    unsigned char *temp_cipher = malloc(cipher_sz + 1);
-                    unsigned char *temp_content = malloc(KEY_SZ/8+1);
-
-                    memcpy(raw_msg.recv_addr, &(buf[m]), SHA256_SZ);
-    
-                    m += SHA256_SZ;
-
-                    raw_msg.timestamp = *(unsigned int*)(&buf[m]);
-                    m += sizeof(raw_msg.timestamp);
-                    
-                    content_len = *(unsigned int*)(&buf[m]);
-                    m += sizeof(content_len);
-
-                    if ((content_len + SHA256_SZ) > KEY_SZ/8){
-                        printf("Certificate contents too large!\n");
-                        return -1;
+                if (raw_msg.type == PUBKEY_REQ){
+                    // send RSA key
+                    if (buf_len == (2 * sizeof(MAGIC) + sizeof(raw_msg.timestamp) + sizeof(raw_msg.type) + SHA256_DIGEST_LENGTH)){
+                        memcpy(raw_msg.recv_addr, &buf[m], SHA256_DIGEST_LENGTH);
+                        m += SHA256_DIGEST_LENGTH;
+                        memcpy(&raw_msg.timestamp, &buf[m], sizeof(raw_msg.timestamp));
+                        raw_msg.content = calloc(1, 1);
+                        raw_msg.sz = 1;
+                        unsigned char *sig_hash;
+                        sig_hash = SHA256(raw_msg.content, 1, NULL);
+                        raw_msg.signature = malloc(RSA_size(ctx.rsa_priv_key));
+                        if ((raw_msg.sig_len = private_encrypt(sig_hash, SHA256_DIGEST_LENGTH, ctx.rsa_priv_key, raw_msg.signature)) == -1){
+                            printf("Error: signature encryption failed (main)\n");
+                        }
+                        send_msg(raw_msg, ctx.server_fd); // send certificate
+                        free(raw_msg.content);
+                        free(raw_msg.signature);
                     }
-                    memcpy(temp_content, &(buf[m]), content_len);
-                    temp_content[content_len] = 0;
-                    // Encrypt certificate key (RSA)        
-                    unsigned char *temp = malloc(content_len + SHA256_SZ + 1);
-                    memcpy(temp, temp_content, content_len);
-                    memcpy(temp+content_len, raw_msg.send_addr, SHA256_SZ);
-
-                    unsigned char *temp_checksum = sha256(temp, (size_t)(content_len + SHA256_SZ), NULL);
-                    memcpy(&temp_content[content_len], temp_checksum, SHA256_SZ);
-                    content_len = content_len + SHA256_SZ;
-                    
-                    memcpy(temp_content, ctx.pub_key, KEY_SZ);
-                    if ((cipher_len = public_encrypt(temp_content, content_len, ctx.pub_key, temp_cipher)) == -1){ // encrypt message
-                        printf("message encryption error\n");
-                    }
-                    
-                    raw_msg.sz = cipher_len;
-                    raw_msg.content = temp_cipher;
-                    send_msg(raw_msg, ctx.server_fd);
-                    free(raw_msg.content);
 
                 } else if(raw_msg.type == CON){
                     printf("Connect\n");
@@ -209,7 +195,6 @@ int main(){
                 raw_msg.type = 0;
                 raw_msg.timestamp = 0;
                 raw_msg.sz = 0;
-                memset(raw_msg.checksum, 0, sizeof(raw_msg.checksum));
         }
         i = 1;
         free(buf);

@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<openssl/sha.h>
 #include"common.h"
 
 
@@ -19,3 +20,13 @@ int fsize(FILE* fp){
     fseek(fp, 0, SEEK_SET);
     return sz;
 }
+
+int isfile(unsigned char *fname){
+    FILE *fp;
+    if (fp = fopen(fname, "r")){
+        fclose(fp);
+        return 1;
+    }
+    return 0;
+}
+

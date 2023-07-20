@@ -98,29 +98,31 @@ int server_connect(char *addr_s, int port, int mode){ // connect to server
 }
 
 int send_msg(msg message, int server_fd){ // format and send message to server
-    int msg_buf_len = message.sz + 2*(sizeof(MAGIC)) + sizeof(message.type) + SHA256_SZ * 2 + sizeof(message.timestamp) + sizeof(message.sz) + sizeof(message.checksum);
-    unsigned char *msg_buf = (unsigned char*)malloc(msg_buf_len); // message buffer
+    int msg_buf_len = message.sz + 2*(sizeof(MAGIC)) + sizeof(message.type) + SHA256_DIGEST_LENGTH * 2 + sizeof(message.timestamp) + sizeof(message.sz) + sizeof(message.sig_len) + message.sig_len;
+    unsigned char *msg_buf = (unsigned char*)malloc((unsigned int) msg_buf_len); // message buffer
     unsigned char *msg_buf_start = msg_buf;
     int res = 0;
     int bytes_wrote = 0;
     // Transfer data to msg_buf
-    memcpy(msg_buf, &MAGIC, sizeof(MAGIC));
+    memcpy(msg_buf, MAGIC, sizeof(MAGIC));
     msg_buf += sizeof(MAGIC);
     memcpy(msg_buf, &message.type, sizeof(message.type));
     msg_buf += sizeof(message.type);
-    memcpy(msg_buf, message.recv_addr, SHA256_SZ);
-    msg_buf += SHA256_SZ;
-    memcpy(msg_buf, message.send_addr, SHA256_SZ);
-    msg_buf += SHA256_SZ;
+    memcpy(msg_buf, message.recv_addr, SHA256_DIGEST_LENGTH);
+    msg_buf += SHA256_DIGEST_LENGTH;
+    memcpy(msg_buf, message.send_addr, SHA256_DIGEST_LENGTH);
+    msg_buf += SHA256_DIGEST_LENGTH;
     memcpy(msg_buf, &message.timestamp, sizeof(message.timestamp));
     msg_buf += sizeof(message.timestamp);
     memcpy(msg_buf, &message.sz, sizeof(message.sz));
     msg_buf += sizeof(message.sz);
     memcpy(msg_buf, message.content, message.sz);
     msg_buf += message.sz;
-    memcpy(msg_buf, message.checksum, SHA256_SZ);
-    msg_buf += SHA256_SZ;
-    memcpy(msg_buf, &MAGIC, sizeof(MAGIC));
+    memcpy(msg_buf, &message.sig_len, sizeof(message.sig_len));
+    msg_buf += sizeof(message.sig_len);
+    memcpy(msg_buf, message.signature, message.sig_len);
+    msg_buf += message.sig_len;
+    memcpy(msg_buf, MAGIC, sizeof(MAGIC));
     msg_buf = msg_buf_start;
     while (res = send(server_fd, msg_buf, msg_buf_len, 0)){
         if (res == -1){
