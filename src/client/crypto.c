@@ -65,13 +65,16 @@ void decrypt(){
 }
 
 int store_pubkey(unsigned char *data, int data_len, unsigned char *name){
+    FILE *fp;
+    unsigned char fname[256] = {0};
     char *keyname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".pem") + 1);
     memcpy(keyname, name, 2*SHA256_DIGEST_LENGTH);
     memcpy(keyname+2*SHA256_DIGEST_LENGTH, ".pem", strlen(".pem"));
     keyname[2*SHA256_DIGEST_LENGTH + strlen(".pem")] = 0;
-    printf("%s\n", keyname);
-    FILE *fp;
-    fp = fopen(keyname, "wb");
+    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcat(fname, "/pubkeys/");
+    strcat(fname, keyname);
+    fp = fopen(fname, "wb");
     if (fwrite(data, sizeof(unsigned char), data_len, fp) < data_len){
         printf("Error: pubkey write failed\n");
         return -1;
@@ -138,15 +141,16 @@ int load_pubkeys(ctx *ctx_p){ // load RSA public keys from PEM files, store in k
 }
 
 int load_pubkey(unsigned char *name, ctx *ctx_p){
-    unsigned char *fname;
+    unsigned char fname[256] = {0};
     unsigned char *data;
     int sz;
     FILE *fp;
     RSA *rsa;
-
-    fname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".pem") + 1);
-    memcpy(fname, name, 2*SHA256_DIGEST_LENGTH);
-    memcpy(fname + 2*SHA256_DIGEST_LENGTH, ".pem", strlen(".pem") + 1);
+    
+    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcat(fname, "/pubkeys/");
+    strncat(fname, name, 2*SHA256_DIGEST_LENGTH);
+    strcat(fname, ".pem");
     if ((fp = fopen(fname, "rb")) == NULL){
         printf("Error: unable to open specified RSA pem file\n");
         return -1;
@@ -161,19 +165,21 @@ int load_pubkey(unsigned char *name, ctx *ctx_p){
     rsa = createRSA(data, PUBLIC);
     ctx_p->pubkeys = realloc(ctx_p->pubkeys, ctx_p->pubkey_count*sizeof(pubkey_ring) + sizeof(pubkey_ring));
     ctx_p->pubkeys[ctx_p->pubkey_count].pubkey = rsa;
-    memcpy(ctx_p->pubkeys[ctx_p->pubkey_count].addr, fname, 2*SHA256_DIGEST_LENGTH);
+    memcpy(ctx_p->pubkeys[ctx_p->pubkey_count].addr, name, 2*SHA256_DIGEST_LENGTH);
     ctx_p->pubkey_count++;
 }
 
 int store_key(unsigned char *data, int data_len, unsigned char *name){
     char *keyname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".key") + 1);
+    unsigned char fname[256] = {0};
     FILE *fp;
     memcpy(keyname, name, 2*SHA256_DIGEST_LENGTH);
     memcpy(keyname+2*SHA256_DIGEST_LENGTH, ".key", strlen(".key"));
     keyname[2*SHA256_DIGEST_LENGTH + strlen(".key")] = 0;
-    printf("%s\n", keyname);
-
-    fp = fopen(keyname, "wb");
+    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcat(fname, "/keys/");
+    strcat(fname, keyname);
+    fp = fopen(fname, "wb");
     if (fwrite(data, sizeof(unsigned char), data_len, fp) < data_len){
         printf("key write error\n");
         return -1;
@@ -205,6 +211,10 @@ int load_keys(ctx *ctx_p){
                     return -1;
                 }
                 sz = fsize(fp);
+                if (sz != AES_KEY_SZ/8){
+                    printf("Error: incorrect AES key size\n");
+                    return -1;
+                }
                 data = malloc(sz);
                 if (fread(data, sizeof(unsigned char), fsize(fp), fp) < sz){
                     printf("Error: key read failed\n");
@@ -213,7 +223,7 @@ int load_keys(ctx *ctx_p){
 
                 ctx_p->aes_keys = realloc(ctx_p->aes_keys, (ctx_p->keyring_sz+1)*sizeof(struct aes_keyring));
                 memcpy(ctx_p->aes_keys[ctx_p->keyring_sz].key, data, sz);
-                memcpy(ctx_p->aes_keys[ctx_p->pubkey_count].addr, en->d_name, 2*SHA256_DIGEST_LENGTH);
+                memcpy(ctx_p->aes_keys[ctx_p->keyring_sz].addr, en->d_name, 2*SHA256_DIGEST_LENGTH);
                 ctx_p->keyring_sz++;
                 bzero(fname, sizeof(fname));
             } else 
@@ -245,7 +255,7 @@ int load_key(unsigned char *addr, ctx *ctx_p){
     }
     ctx_p->aes_keys = realloc(ctx_p->aes_keys, (ctx_p->keyring_sz+1)*sizeof(aes_keyring));
     memcpy(ctx_p->aes_keys[ctx_p->keyring_sz].key, data, sz);
-    memcpy(ctx_p->aes_keys[ctx_p->keyring_sz].addr, fname, 2*SHA256_DIGEST_LENGTH);
+    memcpy(ctx_p->aes_keys[ctx_p->keyring_sz].addr, addr, 2*SHA256_DIGEST_LENGTH);
     ctx_p->keyring_sz++;
 }
 

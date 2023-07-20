@@ -16,6 +16,7 @@ int format_pubkey_x_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf){ // format m
 
     memcpy(msg_p->recv_addr, &buf[m], SHA256_DIGEST_LENGTH); // set destination address
     m += SHA256_DIGEST_LENGTH;
+    memcpy(msg_p->send_addr, ctx_p->addr, SHA256_DIGEST_LENGTH);
                     
     msg_p->timestamp = *(unsigned int*)(&buf[m]);
     m += sizeof(msg_p->timestamp);
@@ -39,8 +40,12 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     unsigned char *temp_content = malloc(AES_KEY_SZ/8);
     unsigned char *seed = malloc(SHA256_DIGEST_LENGTH);
     unsigned char *addr_name;
+
     addr_name = malloc(SHA256_DIGEST_LENGTH*2);
     memcpy(addr_name, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH), 2*SHA256_DIGEST_LENGTH);
+    
+    memcpy(msg_p->recv_addr, msg_p->send_addr, SHA256_DIGEST_LENGTH);
+    memcpy(msg_p->send_addr, ctx_p->addr, SHA256_DIGEST_LENGTH);
 
     msg_p->type = KEY_X;
     dest_key = load_pubkey_ring(addr_name, ctx_p);
@@ -57,8 +62,6 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
         printf("Error: message encryption failed\n");
         return -1;
     }
-
-    printf("aes key encrypted\n");
                    
     //store IV to buffer
 
@@ -71,7 +74,6 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     memcpy(iv, temp_hash, IV_SZ/8);
 
     msg_p->sz = cipher_len + IV_SZ/8;
-    printf("msg_p->sz = %d\n", msg_p->sz);
     memcpy(msg_p->content, temp_cipher, cipher_len);
     memcpy(msg_p->content+cipher_len, temp_hash, IV_SZ/8);
 
@@ -103,16 +105,10 @@ int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){
         memcpy(msg_p->content, &buf[m], msg_p->sz);
         store_pubkey(msg_p->content, msg_p->sz, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH));
         load_pubkey(char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH), ctx_p);
-        for (int i = 0; i < ctx_p->pubkey_count; i++){
-            for (int k = 0; k < SHA256_DIGEST_LENGTH*2; k++){
-                putchar(ctx_p->pubkeys[i].addr[k]);
-            }
-        }
     } else {
         printf("Error: Incorrect key formatting\n");
         return -1;
     }                    
-    printf("certifcate recvd\n");
 }
 
 int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ // extract shared AES key data from recieved buffer // to do: open RSA key from file, malloc temp_aes
@@ -130,7 +126,6 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
         m += sizeof(msg_p->timestamp);
         memcpy(&msg_p->sz, &buf[m], sizeof(msg_p->sz));
         m += sizeof(msg_p->sz);
-        printf("in_msg.sz = %d\n", msg_p->sz);
         if ((buf_len - (sizeof(MAGIC) + sizeof(msg_p->type) + SHA256_DIGEST_LENGTH * 2 + sizeof(msg_p->timestamp) + sizeof(msg_p->sz)) < msg_p->sz) || msg_p->sz < SHA256_DIGEST_LENGTH){
             printf("Error: Incorrect message content size\n");
             return -1;
@@ -155,7 +150,6 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
         printf("buf_len to small\n");
         return -1;
     }
-    printf("parsed rsa keypair\n");
     addr = malloc(2*SHA256_DIGEST_LENGTH);
     memcpy(addr, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH), 2*SHA256_DIGEST_LENGTH);
 
@@ -167,8 +161,5 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
     }
     memcpy(ctx_p->aes_keys[ctx_p->keyring_sz-1].key, temp_aes, AES_KEY_SZ/8);
     memcpy(ctx_p->aes_keys[ctx_p->keyring_sz-1].key, temp_iv, IV_SZ/8);
-    for (int k = 0; k < AES_KEY_SZ/8; k++){
-        putchar(ctx_p->aes_keys[ctx_p->keyring_sz-1].key[k]);
-    }
-    putchar('\n');
+    store_key(ctx_p->aes_keys[ctx_p->keyring_sz-1].key, AES_KEY_SZ/8, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH));
 }

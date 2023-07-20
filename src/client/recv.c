@@ -22,15 +22,12 @@ void *recv_msg(void *arg){ // handle the reception of messages
     buf_start = buf;
 
     in_msg.send_addr = malloc(SHA256_DIGEST_LENGTH);
-    in_msg.recv_addr = ctx_p->addr;
+    in_msg.recv_addr = malloc(SHA256_DIGEST_LENGTH);
+    memcpy(in_msg.recv_addr, ctx_p->addr, SHA256_DIGEST_LENGTH);
 
     while (1){
         while (ctx_p->stat.connected == 1){
             while ((res = read(ctx_p->server_fd, buf + ((i-1) * BUFLEN), BUFLEN))){
-                /*for (int k = 0; k < res; k++){
-                    putchar(buf[k]);
-                }*/
-                //printf("\n\n\n");
                 buf_len += res;
                 buf = buf_start;
                 if (buf_len == BUFLEN){
@@ -52,7 +49,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                 m += sizeof(in_msg.type);
 
                 if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
-                    if (buf_len < (2 * sizeof(MAGIC) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + (in_msg.sz) + 1 + sizeof(in_msg.sig_len))){
+                    if (buf_len < (2 * sizeof(MAGIC) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sig_len))){
                         printf("Error: recieved incorrectly formatted PUBKEY_REQ\n");
                     }
                     m += SHA256_DIGEST_LENGTH;
@@ -96,7 +93,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
             i = 1;
             buf = malloc(BUFLEN);
             buf_start = buf;
-            buf_sz = 1;
+            buf_sz = 0;
             buf_len = 0; 
         }
     }

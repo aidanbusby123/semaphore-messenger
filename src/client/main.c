@@ -189,6 +189,8 @@ int main(){
                         }
                         ctx.stat.connected = 1;
                     }
+                }else if(raw_msg.type == MESSAGE){
+                    printf("Message\n");
                 } else {
                     printf("Message format error\n");
                 }
