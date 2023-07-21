@@ -191,6 +191,8 @@ int main(){
                     }
                 }else if(raw_msg.type == MESSAGE){
                     printf("Message\n");
+                    format_txt_msg(&raw_msg, &ctx, &buf[0]);
+                    send_msg(raw_msg, ctx.server_fd);
                 } else {
                     printf("Message format error\n");
                 }

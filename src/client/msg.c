@@ -5,6 +5,28 @@
 #include<openssl/rand.h>
 #include"common.h"
 
+int format_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf){ // format plaintext message
+    unsigned char *sig_hash;
+    int m = sizeof(MAGIC) + sizeof(msg_p->type);
+    memcpy(msg_p->recv_addr, &buf[m], SHA256_DIGEST_LENGTH);
+    m += SHA256_DIGEST_LENGTH;
+    msg_p->timestamp = *(unsigned int*)(&buf[m]);
+    m += sizeof(msg_p->timestamp);
+    msg_p->sz = *(unsigned int *)(&buf[m]);
+    m += sizeof(msg_p->sz);
+    msg_p->content = malloc(msg_p->sz);
+    memcpy(msg_p->content, &buf[m], msg_p->sz);
+    
+    // create mssage signature hash
+
+    sig_hash = SHA256(msg_p->content, msg_p->sz, NULL);
+    msg_p->signature = malloc(RSA_size(ctx_p->rsa_priv_key));
+    if ((msg_p->sig_len = private_encrypt(sig_hash, SHA256_DIGEST_LENGTH, ctx_p->rsa_priv_key, msg_p->signature)) == -1){
+        printf("Error: format_txt_msg: signature encryption failed\n");
+        return -1;
+    } 
+}
+
 int format_pubkey_x_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf){ // format message to send RSA key data
     int m = sizeof(MAGIC) + sizeof(msg_p->type) + SHA256_DIGEST_LENGTH;
     unsigned int content_len;
@@ -88,6 +110,28 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     } 
 }
 
+int parse_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){ // parse text message
+    int m = sizeof(MAGIC) + sizeof(msg_p->type);
+    m += SHA256_DIGEST_LENGTH;
+    memcpy(msg_p->send_addr, &buf[m], SHA256_DIGEST_LENGTH);
+    m += SHA256_DIGEST_LENGTH;
+    msg_p->timestamp = *(unsigned int*)&buf[m];
+    m += sizeof(msg_p->timestamp);
+    msg_p->sz = *(unsigned int*)&buf[m];
+    m += sizeof(msg_p->sz);
+    if (msg_p->sz > (buf_len - (SHA256_DIGEST_LENGTH * 2 + sizeof(MAGIC) + sizeof(msg_p->timestamp) + sizeof(msg_p->sz)))){
+        printf("Error: parse_txt_msg: msg size too large\n");
+        return -1;
+    }
+    msg_p->content = malloc(msg_p->sz);
+    memcpy(msg_p->content, &buf[m], msg_p->sz);
+    m += msg_p->sz;
+    msg_p->sig_len = *(unsigned int*)(&buf[m]);
+    m += sizeof(msg_p->sig_len);
+    msg_p->signature = realloc(msg_p->signature, msg_p->sig_len);
+    memcpy(msg_p->signature, &buf[m], msg_p->sig_len);
+}
+
 int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){ // extract RSA public key data from recieved buffer
     int m = sizeof(MAGIC) + sizeof(msg_p->type);
     if (buf_len >= (2 * sizeof(MAGIC) + 2 * SHA256_DIGEST_LENGTH + sizeof(msg_p->timestamp) + sizeof(msg_p->sz))){ // Handle certificate message
@@ -111,7 +155,7 @@ int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){
     }                    
 }
 
-int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ // extract shared AES key data from recieved buffer // to do: open RSA key from file, malloc temp_aes
+int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ // extract shared AES key data from recieved buffer
     unsigned char *temp_aes_rsa_cipher;
     unsigned char *temp_aes;
     unsigned char *temp_iv;

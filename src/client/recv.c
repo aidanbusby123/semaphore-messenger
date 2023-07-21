@@ -48,8 +48,17 @@ void *recv_msg(void *arg){ // handle the reception of messages
                 in_msg.type = buf[m];
                 m += sizeof(in_msg.type);
 
-                if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
-                    if (buf_len < (2 * sizeof(MAGIC) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sig_len))){
+                if (in_msg.type == MESSAGE){
+                    if (buf_len < (2 * sizeof(MAGIC) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sz) + sizeof(in_msg.sig_len))){
+                        printf("Error: recieved incorrectly formatted MESSAGE\n");
+                    }
+                    parse_txt_msg(&in_msg, ctx_p, &buf[0], buf_len);
+                    for (int k = 0; k < in_msg.sz; k++){
+                        putchar(in_msg.content[k]);
+                    }
+                    printf("\n");
+                }else if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
+                    if (buf_len < (2 * sizeof(MAGIC) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sz) + sizeof(in_msg.sig_len))){
                         printf("Error: recieved incorrectly formatted PUBKEY_REQ\n");
                     }
                     m += SHA256_DIGEST_LENGTH;
@@ -60,7 +69,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         return NULL;
                     }
                     send_msg(in_msg, ctx_p->server_fd);
-                    free(in_msg.content);
+                    in_msg.content = NULL;
 
                     if (!pubkey_known(char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH))){ // send PUBKEY_REQ to sender
                         printf("PUBKEY_REQ automatic resp\n");
