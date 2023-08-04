@@ -17,7 +17,17 @@
 
 #define PROC_SOCK "/tmp/carbide-client.sock"
 
-const char MAGIC[2] = {0x69, 0x69};
+const char b64_charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+const char b64_inv[] = { 62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58,
+	59, 60, 61, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5,
+	6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+	21, 22, 23, 24, 25, -1, -1, -1, -1, -1, -1, 26, 27, 28,
+	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
+	43, 44, 45, 46, 47, 48, 49, 50, 51 };
+
+const char TX_START[4] = {0x66, 0x26, 0x07, 0x01};
+const char TX_END[4] = {0x31, 0x41, 0x59, 0x26};
 
 void exit_func(ctx *exit_ctx);
 
@@ -72,7 +82,8 @@ int main(){
     fclose(priv_fp);
     fclose(pub_fp);
 
-    ctx.addr = SHA256(ctx.rsa_pub_key_s, strlen(ctx.rsa_pub_key_s), NULL);
+    ctx.addr = malloc(SHA256_DIGEST_LENGTH);
+    memcpy(ctx.addr, SHA256(ctx.rsa_pub_key_s, strlen(ctx.rsa_pub_key_s), NULL), SHA256_DIGEST_LENGTH);
 
     ctx.pubkeys = NULL;
     ctx.pubkey_count = 0;
@@ -130,7 +141,7 @@ int main(){
     raw_msg.recv_addr = malloc(SHA256_DIGEST_LENGTH+1);
     raw_msg.send_addr = ctx.addr;
 
-    int buf_sz = 1;
+    int buf_sz = 0;
     int buf_len = 0;
     i = 1; 
     // main loop, process data from proc_fd and handle program execution, send messages
@@ -138,13 +149,13 @@ int main(){
         while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
             buf_len += res;
             buf = buf_start;
-            if (buf_len == BUFLEN){
+            if (res == BUFLEN){
                 buf = realloc(buf, BUFLEN*(i+1));
                 buf_start = buf;
                 buf_sz++;
                 i++;
             } else {
-                if (memcmp(buf + buf_len - sizeof(MAGIC), MAGIC, sizeof(MAGIC)) == 0){
+                if (memcmp(buf + buf_len - sizeof(TX_END), &TX_END, sizeof(TX_END)) == 0){
                     break;
                 } else{
                     continue;
@@ -152,14 +163,15 @@ int main(){
             }
 
         }    
-        if (buf_len > (2 * sizeof(MAGIC) + 4)){
+    write(STDOUT_FILENO, buf, buf_len);
+        if (buf_len > (2 * sizeof(TX_START) + 4)){
                 // parse buffer
-                int m = 2;
+                int m = sizeof(TX_START);
                 raw_msg.type = buf[m];
                 m+=1;
                 if (raw_msg.type == PUBKEY_REQ){
                     // send RSA key
-                    if (buf_len == (2 * sizeof(MAGIC) + sizeof(raw_msg.timestamp) + sizeof(raw_msg.type) + SHA256_DIGEST_LENGTH)){
+                    if (buf_len == (2 * sizeof(TX_START) + sizeof(raw_msg.timestamp) + sizeof(raw_msg.type) + SHA256_DIGEST_LENGTH)){
                         memcpy(raw_msg.recv_addr, &buf[m], SHA256_DIGEST_LENGTH);
                         m += SHA256_DIGEST_LENGTH;
                         memcpy(&raw_msg.timestamp, &buf[m], sizeof(raw_msg.timestamp));
@@ -179,7 +191,7 @@ int main(){
                 } else if(raw_msg.type == CON){
                     printf("Connect\n");
                     char addr[256] = {0};
-                    if (strchr(&buf[m], 0) == NULL){
+                    if (strchr(&buf[0], 0) == NULL){
                         printf("Improperly formatted IPv4 address!\n");
                     } else {
                         strncpy(addr, &(buf[m]), 256);
@@ -191,8 +203,13 @@ int main(){
                     }
                 }else if(raw_msg.type == MESSAGE){
                     printf("Message\n");
-                    format_txt_msg(&raw_msg, &ctx, &buf[0]);
-                    send_msg(raw_msg, ctx.server_fd);
+                    if (parse_ui_txt_msg(&raw_msg, &ctx, &buf[sizeof(TX_START)]) != -1){
+                        send_msg(raw_msg, ctx.ui_sock);
+                        if (format_txt_msg(&raw_msg, &ctx) != -1){
+                            send_msg(raw_msg, ctx.server_fd);
+                            store_txt_msg(&raw_msg, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
+                        }
+                    }
                 } else {
                     printf("Message format error\n");
                 }
@@ -204,7 +221,7 @@ int main(){
         free(buf);
         buf = malloc(BUFLEN);
         buf_start = buf;
-        buf_sz = 1;
+        buf_sz = 0;
         buf_len = 0;
     }
 }
