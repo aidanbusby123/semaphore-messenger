@@ -116,6 +116,9 @@ int load_keys(ctx *ctx_p); // load AES private keys from file, store in keyring
 // parse txt message from client UI
 int parse_ui_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf);
 
+// format connection message
+int format_con_msg(msg *msg_p, ctx *ctx_p);
+
 int format_txt_msg(msg *msg_p, ctx *ctx_p); // format plaintext message
 int parse_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len); // parse text message
 
@@ -124,8 +127,10 @@ int format_pubkey_x_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf); // format m
 int format_key_x_msg(msg *msg_p, ctx *ctx_p); // format msg to send shared AES key data
 int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len); // extract RSA public key data from recieved buffer
 int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len); // extract shared AES key data from recieved buffer
-
-int store_txt_msg(msg *msg_p, unsigned char *addr); // store txt message on disk
+// store txt message on disk
+int store_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *addr); 
+// update message log
+int store_txt_msg_log(msg *msg_p, ctx *ctx_p, unsigned char *addr);
 
 // File functions
 FILE* open_file(char *file);

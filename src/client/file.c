@@ -29,4 +29,3 @@ int isfile(unsigned char *fname){
     }
     return 0;
 }
-

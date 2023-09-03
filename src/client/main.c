@@ -200,6 +200,8 @@ int main(){
                             printf("server connection error!\n");
                         }
                         ctx.stat.connected = 1;
+                        format_con_msg(&raw_msg, &ctx);
+                        send_msg(raw_msg, ctx.server_fd);
                     }
                 }else if(raw_msg.type == MESSAGE){
                     printf("Message\n");
@@ -207,7 +209,7 @@ int main(){
                         send_msg(raw_msg, ctx.ui_sock);
                         if (format_txt_msg(&raw_msg, &ctx) != -1){
                             send_msg(raw_msg, ctx.server_fd);
-                            store_txt_msg(&raw_msg, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
+                            store_txt_msg(&raw_msg, &ctx, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
                         }
                     }
                 } else {

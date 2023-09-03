@@ -119,6 +119,37 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     } 
 }
 
+int format_con_msg(msg *msg_p, ctx *ctx_p){
+    FILE* log_fp;
+    unsigned char log_fname[256] = {0};
+    memcpy(msg_p->send_addr, ctx_p->addr, SHA256_DIGEST_LENGTH);
+    msg_p->timestamp = (unsigned int)time(NULL);
+
+    strcpy(log_fname, getcwd(NULL, sizeof(log_fname)));
+    strcat(log_fname, "/messages/");
+    strcat(log_fname, "log");
+
+    log_fp = fopen(log_fname, "rb");
+    
+    if (log_fp == NULL || fsize(log_fp) < (sizeof(int) + 4*SHA256_DIGEST_LENGTH)){
+        msg_p->sz = 0;
+        msg_p->content = NULL;
+    } else {
+        log_fp = fopen(log_fname, "rb");
+        msg_p->sz = sizeof(int);
+        msg_p->content = malloc(msg_p->sz);
+
+        fseek(log_fp, -1*(sizeof(int) + 4*SHA256_DIGEST_LENGTH + 1), SEEK_END);
+        if (fread(msg_p->content, sizeof(int), 1, log_fp) != sizeof(int)){
+            printf("Error: format_con_msg: unable to read timestamp from log\n");
+        }
+        fclose(log_fp);
+    }
+    msg_p->signature = malloc(SHA256_DIGEST_LENGTH);
+    msg_p->signature = SHA256(msg_p->content, msg_p->sz, NULL);
+    msg_p->sig_len = SHA256_DIGEST_LENGTH;
+}
+
 int parse_ui_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf){
     int m = sizeof(msg_p->type);
     memcpy(msg_p->send_addr, ctx_p->addr, SHA256_DIGEST_LENGTH);
@@ -255,8 +286,9 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
     store_key(ctx_p->aes_keys[ctx_p->keyring_sz-1].key, AES_KEY_SZ/8, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH));
 }
 
-int store_txt_msg(msg *msg_p, unsigned char *addr){
+int store_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *addr){
     FILE *fp;
+    FILE *hash_fp;
     unsigned char *buf;
     unsigned char *msg_buf;
     unsigned char *raw_msg_buf;
@@ -265,6 +297,7 @@ int store_txt_msg(msg *msg_p, unsigned char *addr){
     int raw_msg_buf_len;
     unsigned char *name = malloc(2*SHA256_DIGEST_LENGTH+1);
     unsigned char fname[256] = {0};
+
 
     memcpy(name, addr, SHA256_DIGEST_LENGTH*2);
     name[SHA256_DIGEST_LENGTH*2] = 0;
@@ -295,5 +328,67 @@ int store_txt_msg(msg *msg_p, unsigned char *addr){
     if (fwrite(buf, 1, buf_len, fp) < buf_len){
         printf("Error: store_txt_msg: unable to write msg to file\n");
     }
+    fclose(fp);
+
+    if (store_txt_msg_log(msg_p, ctx_p, addr) == -1){
+        printf("Error: store_txt_msg: store_txt_msg_hash\n");
+    }
+}
+
+int store_txt_msg_log(msg *msg_p, ctx *ctx_p, unsigned char *addr){
+    FILE *fp;
+    RSA* pubkey;
+    unsigned char fname[256] = {0};
+    unsigned char *signature_s;
+    unsigned char *name;
+    unsigned char *bin_hash;
+    unsigned char *hash;
+    unsigned char *content;
+    int bin_hash_len;
+    int hash_len;
+    int content_len;
+
+    signature_s = malloc(msg_p->sig_len+1);
+    memcpy(signature_s, msg_p->signature, msg_p->sig_len);
+    signature_s[msg_p->sig_len] = 0;
+
+    name = malloc(2*SHA256_DIGEST_LENGTH+1);
+    memcpy(name, addr, 2*SHA256_DIGEST_LENGTH);
+    name[2*SHA256_DIGEST_LENGTH] = 0;
+
+    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcat(fname, "/messages/");
+    strcat(fname, "log");
+
+    if ((pubkey = load_pubkey_ring(name, ctx_p)) == NULL){
+        printf("Error: store_txt_msg_hash: unable to find sender RSA pubkey\n");
+        return -1;
+    }
+    
+    bin_hash = malloc(RSA_size(pubkey));
+
+    if ((bin_hash_len = public_decrypt(msg_p->signature, msg_p->sig_len, pubkey, bin_hash)) == -1){
+        printf("Error: store_txt_msg_hash: unable to decode message signature\n");
+        return -1;
+    }
+
+    hash_len = 2*SHA256_DIGEST_LENGTH;
+    
+    hash = char_to_hex(bin_hash, bin_hash_len);
+
+    content_len = sizeof(unsigned int) + 2*SHA256_DIGEST_LENGTH + 2*SHA256_DIGEST_LENGTH;
+    content = malloc(content_len);
+
+    memcpy(content, &msg_p->timestamp, sizeof(msg_p->timestamp));
+    memcpy(content + sizeof(msg_p->timestamp), char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH), 2*SHA256_DIGEST_LENGTH);
+    memcpy(content + sizeof(msg_p->timestamp) + 2*SHA256_DIGEST_LENGTH, hash, hash_len);
+
+    fp = fopen(fname, "ab");
+
+    if (fwrite(content, 1, content_len, fp) != content_len){
+        printf("Error: store_txt_msg_hash: unable to write message hash to file\n");
+        return -1;
+    }
+    fputc('\n', fp);
     fclose(fp);
 }

@@ -63,7 +63,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         printf("Error: recieved incorrectly formatted MESSAGE\n");
                     }
                     parse_txt_msg(&in_msg, ctx_p, &buf[0], buf_len);
-                    store_txt_msg(&in_msg, char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH));
+                    store_txt_msg(&in_msg, ctx_p, char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH));
                 }else if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
                     if (buf_len < (2 * sizeof(TX_START) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sz) + sizeof(in_msg.sig_len))){
                         printf("Error: recieved incorrectly formatted PUBKEY_REQ\n");

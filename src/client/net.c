@@ -108,23 +108,42 @@ int send_msg(msg message, int server_fd){ // format and send message to server
     int res = 0;
     int bytes_wrote = 0;
     // Transfer data to msg_buf
-    memcpy(raw_msg_buf, &message.type, sizeof(message.type));
-    raw_msg_buf += sizeof(message.type);
-    memcpy(raw_msg_buf, message.recv_addr, SHA256_DIGEST_LENGTH);
-    raw_msg_buf += SHA256_DIGEST_LENGTH;
-    memcpy(raw_msg_buf, message.send_addr, SHA256_DIGEST_LENGTH);
-    raw_msg_buf += SHA256_DIGEST_LENGTH;
-    memcpy(raw_msg_buf, &message.timestamp, sizeof(message.timestamp));
-    raw_msg_buf += sizeof(message.timestamp);
-    memcpy(raw_msg_buf, &message.sz, sizeof(message.sz));
-    raw_msg_buf += sizeof(message.sz);
-    memcpy(raw_msg_buf, message.content, message.sz);
-    raw_msg_buf += message.sz;
-    memcpy(raw_msg_buf, &message.sig_len, sizeof(message.sig_len));
-    raw_msg_buf += sizeof(message.sig_len);
-    memcpy(raw_msg_buf, message.signature, message.sig_len);
-    raw_msg_buf += message.sig_len;
-    raw_msg_buf = raw_msg_buf_start;
+    switch(message.type){
+        case MESSAGE || PUBKEY_REQ || PUBKEY_X || KEY_X:
+            memcpy(raw_msg_buf, &message.type, sizeof(message.type));
+            raw_msg_buf += sizeof(message.type);
+            memcpy(raw_msg_buf, message.recv_addr, SHA256_DIGEST_LENGTH);
+            raw_msg_buf += SHA256_DIGEST_LENGTH;
+            memcpy(raw_msg_buf, message.send_addr, SHA256_DIGEST_LENGTH);
+            raw_msg_buf += SHA256_DIGEST_LENGTH;
+            memcpy(raw_msg_buf, &message.timestamp, sizeof(message.timestamp));
+            raw_msg_buf += sizeof(message.timestamp);
+            memcpy(raw_msg_buf, &message.sz, sizeof(message.sz));
+            raw_msg_buf += sizeof(message.sz);
+            memcpy(raw_msg_buf, message.content, message.sz);
+            raw_msg_buf += message.sz;
+            memcpy(raw_msg_buf, &message.sig_len, sizeof(message.sig_len));
+            raw_msg_buf += sizeof(message.sig_len);
+            memcpy(raw_msg_buf, message.signature, message.sig_len);
+            raw_msg_buf += message.sig_len;
+            raw_msg_buf = raw_msg_buf_start;
+        case CON:
+            memcpy(raw_msg_buf, &message.type, sizeof(message.type));
+            raw_msg_buf += sizeof(message.type);
+            memcpy(raw_msg_buf, message.send_addr, SHA256_DIGEST_LENGTH);
+            raw_msg_buf += SHA256_DIGEST_LENGTH;
+            memcpy(raw_msg_buf, &message.timestamp, sizeof(message.timestamp));
+            raw_msg_buf += sizeof(message.timestamp);
+            memcpy(raw_msg_buf, &message.sz, sizeof(message.sz));
+            raw_msg_buf += sizeof(message.sz);
+            memcpy(raw_msg_buf, message.content, message.sz);
+            raw_msg_buf += message.sz;
+            memcpy(raw_msg_buf, &message.sig_len, sizeof(message.sig_len));
+            raw_msg_buf += sizeof(message.sig_len);
+            memcpy(raw_msg_buf, message.signature, message.sig_len);
+            raw_msg_buf += message.sig_len;
+            raw_msg_buf = raw_msg_buf_start;
+    }
 
     if ((temp_msg_buf_len = b64_encode(raw_msg_buf, raw_msg_buf_len, &temp_msg_buf)) < 0){
         printf("Error: send_msg: unable to encode temp message buf in base64");
