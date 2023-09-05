@@ -40,7 +40,7 @@ def send_message(event=None):
     if (len(message_content) == 0):
         return
     type_data = 1
-    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + destkey.encode() + int(time.time()).to_bytes(4, 'little') + len(message_content).to_bytes(4, 'little') + message_content.encode() + bytes.fromhex(TX_END)
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + int(destkey).to_bytes(32, 'little') + int(time.time()).to_bytes(4, 'little') + len(message_content).to_bytes(4, 'little') + message_content.encode() + bytes.fromhex(TX_END)
     client.sendall(message)
     message_entry.delete(0, tk.END)
 
