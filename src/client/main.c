@@ -15,7 +15,7 @@
 #include<openssl/rand.h>
 #include"common.h"
 
-#define PROC_SOCK "/tmp/carbide-client.sock"
+#define PROC_SOCK "/tmp/semaphore-client.sock"
 
 const char b64_charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
