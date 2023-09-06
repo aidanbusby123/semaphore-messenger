@@ -13,7 +13,7 @@ import threading
 TX_START = "66 26 07 01"
 TX_END = "31 41 59 26"
 
-socket_path = "/tmp/carbide-client.sock"
+socket_path = "/tmp/semaphore-client.sock"
 
 destkey = 0
 port = "6969"
@@ -119,6 +119,15 @@ def parse_stored_message(buf):
         message_tuple[3] = buf[72:72+int.from_bytes(message_tuple[2], sys.byteorder)]
     return message_tuple
 
+def parse_ui_message(buf):
+    message_tuple = [None] * 4
+    if len(buf) >= 40:
+        message_tuple[0] = buf[0:32]
+        message_tuple[1] = buf[32:36]
+        message_tuple[2] = buf[36:40]
+        content_len = int.from_bytes(message_tuple[2], 'little')
+        message_tuple[3] = buf[40:40+content_len]
+    return message_tuple
 
 def message_window_setup(messages):
     message_list.delete(0, tk.END)
@@ -126,7 +135,7 @@ def message_window_setup(messages):
         m_buf = base64.b64decode(m)
         message_tuple = parse_stored_message(m_buf)
         print(message_tuple[3])
-        message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3].decode()
+        message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3]
         message_list.insert('end', message_str)
 
 def set_contact(event=None):
@@ -153,7 +162,8 @@ def ui_listen():
                 data = data.replace(bytes.fromhex(TX_START), b'')
                 data = data.replace(bytes.fromhex(TX_END), b'')
                 m_buf = base64.b64decode(data)
-                message_tuple = parse_stored_message(m_buf[1:])
+                print(m_buf)
+                message_tuple = parse_ui_message(m_buf[1:])
                 print(message_tuple[3])
                 message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3].decode()
                 message_list.insert('end', message_str)
