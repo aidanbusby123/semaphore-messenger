@@ -25,7 +25,7 @@ extern const char TX_END[4];
 #define PUBLIC 0
 #define PRIVATE 1
 
-#define PORT 8080
+#define PORT 6626
 #define TOR_PORT 9050
 
 // connection modes

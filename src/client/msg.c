@@ -23,8 +23,6 @@ int format_txt_msg(msg *msg_p, ctx *ctx_p){ // format plaintext message
     temp_hash = SHA256(temp_iv, IV_SZ/8, NULL);
     memcpy(iv, temp_hash, IV_SZ/8);
 
-    
-
     if ((key = load_key_ring(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p)) == NULL){
         printf("Error: format_txt_msg: unable to load key\n");
         return -1;
@@ -139,8 +137,8 @@ int format_con_msg(msg *msg_p, ctx *ctx_p){
         msg_p->sz = sizeof(int);
         msg_p->content = malloc(msg_p->sz);
 
-        fseek(log_fp, -1*(sizeof(int) + 4*SHA256_DIGEST_LENGTH + 1), SEEK_END);
-        if (fread(msg_p->content, sizeof(int), 1, log_fp) != sizeof(int)){
+        fseek(log_fp, -1*(sizeof(int) + 4*SHA256_DIGEST_LENGTH), SEEK_END);
+        if (fread(msg_p->content, sizeof(int), 1, log_fp) != 1){
             printf("Error: format_con_msg: unable to read timestamp from log\n");
         }
         fclose(log_fp);
