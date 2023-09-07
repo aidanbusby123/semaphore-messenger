@@ -42,13 +42,13 @@ def send_message(event=None):
     if destkey == 0:
         return
     type_data = 1
-    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + destkey + int(time.time()).to_bytes(4, 'little') + len(message_content).to_bytes(4, 'little') + message_content.encode() + bytes.fromhex(TX_END)
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + destkey.encode() + int(time.time()).to_bytes(4, 'little') + len(message_content).to_bytes(4, 'little') + message_content.encode() + bytes.fromhex(TX_END)
     client.sendall(message)
     message_entry.delete(0, tk.END)
 
-def pubkey_exchange(destkey):
+def pubkey_exchange(key):
     type_data = 2
-    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + destkey + int(time.time()).to_bytes(4, 'little') + bytes.fromhex(TX_END)
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + key.encode() + int(time.time()).to_bytes(4, 'little') + bytes.fromhex(TX_END)
     client.sendall(message)
 
 
