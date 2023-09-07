@@ -39,6 +39,8 @@ def send_message(event=None):
     message_content = message_entry.get()
     if (len(message_content) == 0):
         return
+    if destkey == 0:
+        return
     type_data = 1
     message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + destkey + int(time.time()).to_bytes(4, 'little') + len(message_content).to_bytes(4, 'little') + message_content.encode() + bytes.fromhex(TX_END)
     client.sendall(message)
