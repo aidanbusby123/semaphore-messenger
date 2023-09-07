@@ -1,1 +1,1 @@
-gcc -g main.c net.c file.c crypto.c -lpthread -lcrypto
+gcc -g main.c net.c msg.c recv.c file.c crypto.c -lpthread -lcrypto
