@@ -48,7 +48,7 @@ def send_message(event=None):
 
 def pubkey_exchange(key):
     type_data = 2
-    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + key.encode() + int(time.time()).to_bytes(4, 'little') + bytes.fromhex(TX_END)
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + bytes.fromhex(key) + int(time.time()).to_bytes(4, 'little') + bytes.fromhex(TX_END)
     client.sendall(message)
 
 
