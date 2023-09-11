@@ -163,7 +163,9 @@ int main(){
             }
 
         }    
+        printf("main: ");
     write(STDOUT_FILENO, buf, buf_len);
+    putchar('\n');
         if (buf_len > (2 * sizeof(TX_START) + 4)){
                 // parse buffer
                 int m = sizeof(TX_START);
@@ -208,6 +210,8 @@ int main(){
                     if (parse_ui_txt_msg(&raw_msg, &ctx, &buf[sizeof(TX_START)]) != -1){
                         send_msg(raw_msg, ctx.ui_sock);
                         if (format_txt_msg(&raw_msg, &ctx) != -1){
+                            printf("size:%d\n", raw_msg.sz);
+                            printf("timestamp:%d\n", raw_msg.timestamp);
                             send_msg(raw_msg, ctx.server_fd);
                             store_txt_msg(&raw_msg, &ctx, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
                         }

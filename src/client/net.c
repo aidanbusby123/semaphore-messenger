@@ -113,8 +113,14 @@ int send_msg(msg message, int server_fd){ // format and send message to server
             memcpy(raw_msg_buf, &message.type, sizeof(message.type));
             raw_msg_buf += sizeof(message.type);
             memcpy(raw_msg_buf, message.recv_addr, SHA256_DIGEST_LENGTH);
+            printf("recv_addr: ");
+            write(STDOUT_FILENO, message.recv_addr, 32);
+            printf("\n");
             raw_msg_buf += SHA256_DIGEST_LENGTH;
             memcpy(raw_msg_buf, message.send_addr, SHA256_DIGEST_LENGTH);
+            printf("send_addr: ");
+            write(STDOUT_FILENO, message.send_addr, 32);
+            printf("\n");
             raw_msg_buf += SHA256_DIGEST_LENGTH;
             memcpy(raw_msg_buf, &message.timestamp, sizeof(message.timestamp));
             raw_msg_buf += sizeof(message.timestamp);
@@ -126,7 +132,10 @@ int send_msg(msg message, int server_fd){ // format and send message to server
             raw_msg_buf += sizeof(message.sig_len);
             memcpy(raw_msg_buf, message.signature, message.sig_len);
             raw_msg_buf += message.sig_len;
+            raw_msg_buf_len = raw_msg_buf-raw_msg_buf_start;
             raw_msg_buf = raw_msg_buf_start;
+            write(STDOUT_FILENO, raw_msg_buf, 2*raw_msg_buf_len);
+            break;
         case CON:
             memcpy(raw_msg_buf, &message.type, sizeof(message.type));
             raw_msg_buf += sizeof(message.type);
@@ -142,12 +151,15 @@ int send_msg(msg message, int server_fd){ // format and send message to server
             raw_msg_buf += sizeof(message.sig_len);
             memcpy(raw_msg_buf, message.signature, message.sig_len);
             raw_msg_buf += message.sig_len;
+            raw_msg_buf_len = raw_msg_buf-raw_msg_buf_start;
             raw_msg_buf = raw_msg_buf_start;
+            break;
     }
 
     if ((temp_msg_buf_len = b64_encode(raw_msg_buf, raw_msg_buf_len, &temp_msg_buf)) < 0){
         printf("Error: send_msg: unable to encode temp message buf in base64");
     }
+    printf("sending: ");
     write(STDOUT_FILENO, temp_msg_buf, temp_msg_buf_len);
     printf("\n");
     msg_buf_len = sizeof(TX_START) + sizeof(TX_END) + temp_msg_buf_len;
@@ -155,7 +167,8 @@ int send_msg(msg message, int server_fd){ // format and send message to server
     memcpy(msg_buf, TX_START, sizeof(TX_START));
     memcpy(msg_buf+sizeof(TX_START), temp_msg_buf, temp_msg_buf_len);
     memcpy(msg_buf+sizeof(TX_START) + temp_msg_buf_len, TX_END, sizeof(TX_END));
-
+    printf("sending: \n");
+    write(STDOUT_FILENO, msg_buf, msg_buf_len);
     while (res = send(server_fd, msg_buf, msg_buf_len, 0)){
         if (res == -1){
             printf("message send error\n");
