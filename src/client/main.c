@@ -170,7 +170,7 @@ int main(){
                 // parse buffer
                 int m = sizeof(TX_START);
                 raw_msg.type = buf[m];
-                m+=1;
+                m+=1; 
                 if (raw_msg.type == PUBKEY_REQ){
                     // send RSA key
                     if (buf_len == (2 * sizeof(TX_START) + sizeof(raw_msg.timestamp) + sizeof(raw_msg.type) + SHA256_DIGEST_LENGTH)){
@@ -179,12 +179,13 @@ int main(){
                         memcpy(&raw_msg.timestamp, &buf[m], sizeof(raw_msg.timestamp));
                         raw_msg.content = calloc(1, 1);
                         raw_msg.sz = 1;
-                        unsigned char *sig_hash;
+                        unsigned char *sig_hash = malloc(SHA256_DIGEST_LENGTH);
                         sig_hash = SHA256(raw_msg.content, 1, NULL);
                         raw_msg.signature = malloc(RSA_size(ctx.rsa_priv_key));
                         if ((raw_msg.sig_len = private_encrypt(sig_hash, SHA256_DIGEST_LENGTH, ctx.rsa_priv_key, raw_msg.signature)) == -1){
                             printf("Error: signature encryption failed (main)\n");
                         }
+                        write(STDOUT_FILENO, raw_msg.signature, raw_msg.sig_len);
                         send_msg(raw_msg, ctx.server_fd); // send certificate
                         free(raw_msg.content);
                         free(raw_msg.signature);
