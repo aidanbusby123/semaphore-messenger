@@ -53,6 +53,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                     printf("Error: recv: unable to decode message buf from base64\n");
                 }
             }   
+            printf("recv:\n");
             write(STDOUT_FILENO, buf, buf_len);
             if (buf_len > (2 * sizeof(TX_START) + 4)){
                 int m = 0;
