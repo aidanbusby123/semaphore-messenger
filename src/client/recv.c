@@ -33,7 +33,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
             while ((res = read(ctx_p->server_fd, raw_buf + ((i-1) * BUFLEN), BUFLEN))){
                 raw_buf_len += res;
                 raw_buf = raw_buf_start;
-                if (raw_buf_len-(BUFLEN*raw_buf_sz) == BUFLEN){
+                if (res == BUFLEN){
                     raw_buf = realloc(raw_buf, BUFLEN*(i+1));
                     raw_buf_start = raw_buf;
                     raw_buf_sz++;
@@ -48,7 +48,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                 }
 
             }
-            if (raw_buf_len > sizeof(TX_START)){
+            if (raw_buf_len > (2*sizeof(TX_START) + 4)){
                 if ((buf_len = b64_decode(raw_buf+sizeof(TX_START), raw_buf_len-sizeof(TX_END), &buf)) < 0){
                     printf("Error: recv: unable to decode message buf from base64\n");
                 }
