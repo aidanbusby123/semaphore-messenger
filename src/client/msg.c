@@ -109,7 +109,7 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     msg_p->sz = cipher_len;
 
     store_key(msg_p->content, msg_p->sz, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
-    load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
+    load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p);
                    
     // create message signature
 
