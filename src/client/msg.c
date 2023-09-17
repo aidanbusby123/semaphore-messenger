@@ -106,6 +106,7 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     }
 
     memcpy(msg_p->content, temp_cipher, cipher_len);
+    msg_p->sz = cipher_len;
                    
     // create message signature
 
