@@ -80,7 +80,6 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     unsigned int content_len;
     unsigned char *temp_cipher;
     unsigned char *aes_key;
-    unsigned char *temp_content = malloc(AES_KEY_SZ/8);
     unsigned char *seed = malloc(SHA256_DIGEST_LENGTH);
     unsigned char *addr_name;
 
@@ -105,6 +104,8 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
         printf("Error: message encryption failed\n");
         return -1;
     }
+
+    memcpy(msg_p->content, temp_cipher, cipher_len);
                    
     // create message signature
 
@@ -254,7 +255,7 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
             return -1;
         }
         msg_p->content = malloc(msg_p->sz);
-        temp_aes_rsa_cipher = malloc(msg_p->sz-IV_SZ/8);
+        temp_aes_rsa_cipher = malloc(msg_p->sz);
         temp_aes = malloc(RSA_size(ctx_p->rsa_priv_key));
         memcpy(msg_p->content, &buf[m], msg_p->sz);
         m += msg_p->sz;
@@ -276,7 +277,7 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
 
     ctx_p->aes_keys = realloc(ctx_p->aes_keys, (ctx_p->keyring_sz+1)*sizeof(aes_keyring));
     ctx_p->keyring_sz += 1;
-    if (private_decrypt(temp_aes_rsa_cipher, msg_p->sz-IV_SZ/8, ctx_p->rsa_priv_key, temp_aes) != AES_KEY_SZ/8){
+    if (private_decrypt(temp_aes_rsa_cipher, msg_p->sz, ctx_p->rsa_priv_key, temp_aes) != AES_KEY_SZ/8){
         printf("Incorrect AES size\n");
         return -1;
     }
