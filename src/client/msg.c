@@ -254,7 +254,7 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
             return -1;
         }
         msg_p->content = malloc(msg_p->sz);
-        temp_aes_rsa_cipher = malloc(msg_p->sz);
+        temp_aes_rsa_cipher = malloc(msg_p->sz-IV_SZ/8);
         temp_aes = malloc(RSA_size(ctx_p->rsa_priv_key));
         memcpy(msg_p->content, &buf[m], msg_p->sz);
         m += msg_p->sz;
