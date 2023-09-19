@@ -104,13 +104,12 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
         printf("Error: message encryption failed\n");
         return -1;
     }
-
-    memcpy(msg_p->content, temp_cipher, cipher_len);
-    msg_p->sz = cipher_len;
-
+    
     store_key(msg_p->content, msg_p->sz, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
     load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p);
-                   
+    
+    memcpy(msg_p->content, temp_cipher, cipher_len);
+    msg_p->sz = cipher_len;
     // create message signature
 
     unsigned char *sig_hash = malloc(SHA256_DIGEST_LENGTH);
@@ -273,7 +272,7 @@ int parse_key_x_buf(msg *msg_p, ctx* ctx_p, unsigned char *buf, int buf_len){ //
 
         memcpy(temp_aes_rsa_cipher, msg_p->content, msg_p->sz);
     } else {
-        printf("buf_len to small\n");
+        printf("buf_len too small\n");
         return -1;
     }
     addr = malloc(2*SHA256_DIGEST_LENGTH);
