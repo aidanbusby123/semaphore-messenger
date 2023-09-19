@@ -79,7 +79,7 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     int cipher_sz;
     unsigned int content_len;
     unsigned char *temp_cipher;
-    unsigned char *aes_key;
+    unsigned char *aes_key = malloc(SHA256_DIGEST_LENGTH);
     unsigned char *seed = malloc(SHA256_DIGEST_LENGTH);
     unsigned char *addr_name;
 
@@ -99,15 +99,15 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
 
     RAND_bytes(seed, AES_KEY_SZ/8); // generate random number to be used as seed for AES key
     aes_key = SHA256(seed, AES_KEY_SZ/8, NULL); // generate AES key
+    
+    store_key(aes_key, AES_KEY_SZ/8, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
+    load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p);
+    
     // Encrypt certificate key (RSA)       
     if ((cipher_len = public_encrypt(aes_key, SHA256_DIGEST_LENGTH, dest_key, temp_cipher)) == -1){ // encrypt rsa key
         printf("Error: message encryption failed\n");
         return -1;
     }
-    
-    store_key(msg_p->content, msg_p->sz, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
-    load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p);
-    
     memcpy(msg_p->content, temp_cipher, cipher_len);
     msg_p->sz = cipher_len;
     // create message signature
