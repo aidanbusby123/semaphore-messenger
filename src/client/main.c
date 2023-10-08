@@ -1,12 +1,18 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-#include<unistd.h>
-#include<time.h>
-#include<pthread.h>
-#include<sys/socket.h>
-#include<sys/types.h>
-#include<sys/un.h>
+
+#ifdef _WIN32
+    #include<winsock2.h>
+#else
+    #include<sys/socket.h>
+    #include<sys/types.h>
+    #include<sys/un.h>
+    #include<sys/stat.h>
+    #include<unistd.h>
+    #include<time.h>
+    #include<pthread.h>
+#endif
 #include<openssl/ssl.h>
 #include<openssl/sha.h>
 #include<openssl/rsa.h>
@@ -85,19 +91,45 @@ int main(){
     ctx.addr = malloc(SHA256_DIGEST_LENGTH);
     memcpy(ctx.addr, SHA256(ctx.rsa_pub_key_s, strlen(ctx.rsa_pub_key_s), NULL), SHA256_DIGEST_LENGTH);
 
+    // load keys, pubkeys, messages from file
+    struct stat st = {0};
+    unsigned char *dirname;
+    unsigned char *pubkey_dir;
+    unsigned char *key_dir;
+    unsigned char *message_dir;
+
     ctx.pubkeys = NULL;
     ctx.pubkey_count = 0;
     ctx.aes_keys = NULL;
     ctx.keyring_sz = 0;
 
-    if (load_pubkeys(&ctx) == -1){
-        printf("Error: loading pubkeys failed\n");
-        return -1;
+    dirname = malloc(strlen(DATA_DIR)+1);
+    strcpy(dirname, DATA_DIR);
+    pubkey_dir = malloc(strlen(dirname) + strlen("/pubkeys/"));
+    strcpy(pubkey_dir, dirname);
+    strcat(pubkey_dir, "/pubkeys/");
+    key_dir = malloc(strlen(dirname) + strlen("/keys/")+1);
+    strcpy(key_dir, dirname);
+    strcat(key_dir, "/keys/");
+    message_dir = malloc(strlen(dirname) + strlen("/messages/")+1);
+    strcpy(message_dir, dirname);
+    strcpy(message_dir, "/messages/");
+
+    if (stat(dirname, &st) == -1){
+        mkdir(dirname, 0700);
     }
-    if (load_keys(&ctx) == -1){
-        printf("Error: loading keys failed\n");
-        return -1;
+    if (stat(pubkey_dir, &st) == -1){
+        mkdir(pubkey_dir, 0700);
     }
+    if (stat(key_dir, &st) == -1){
+        mkdir(key_dir, 0700);
+    }
+    if (stat(message_dir, &st) == -1){
+        mkdir(message_dir, 0700);
+    }
+
+    if (load_pubkeys(&ctx) == -1);
+    if (load_keys(&ctx) == -1);
     if ((res = pthread_create(&recv_thread, NULL, recv_msg, (void*)&ctx)) != 0){ // create recieving thread
         printf("Error: failed to initialize recv_thread");
         return -1;

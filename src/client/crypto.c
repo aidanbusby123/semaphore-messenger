@@ -110,12 +110,15 @@ int public_decrypt(unsigned char * enc_data,int data_len, RSA *rsa, unsigned cha
 int store_pubkey(unsigned char *data, int data_len, unsigned char *name){
     FILE *fp;
     unsigned char fname[256] = {0};
+    unsigned char *dirname;
+    dirname = malloc(strlen(DATA_DIR)+strlen("/pubkeys/"));
+    strcpy(dirname, DATA_DIR);
+    strcpy(dirname, "/pubkeys/");
     char *keyname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".pem") + 1);
     memcpy(keyname, name, 2*SHA256_DIGEST_LENGTH);
     memcpy(keyname+2*SHA256_DIGEST_LENGTH, ".pem", strlen(".pem"));
     keyname[2*SHA256_DIGEST_LENGTH + strlen(".pem")] = 0;
-    strcpy(fname, getcwd(NULL, sizeof(fname)));
-    strcat(fname, "/pubkeys/");
+    strcpy(fname, dirname);
     strcat(fname, keyname);
     fp = fopen(fname, "wb");
     if (fwrite(data, sizeof(unsigned char), data_len, fp) < data_len){
@@ -128,6 +131,7 @@ int store_pubkey(unsigned char *data, int data_len, unsigned char *name){
 
 unsigned char* load_key_ring(unsigned char *name, ctx *ctx_p){
     for (int i = 0; i < ctx_p->keyring_sz; i++){
+        write(STDOUT_FILENO, ctx_p->aes_keys[i].addr, 64);
         if (strncmp(name, ctx_p->aes_keys[i].addr, sizeof(ctx_p->aes_keys->addr)) == 0){
             return ctx_p->aes_keys[i].key;
         }
@@ -151,6 +155,7 @@ int load_pubkeys(ctx *ctx_p){ // load RSA public keys from PEM files, store in k
     struct dirent *en;
     FILE *fp;
     unsigned char *keyname;
+    unsigned char *dirname;
     unsigned char fname[256] = {0};
     int sz;
     unsigned char *data;
@@ -158,12 +163,14 @@ int load_pubkeys(ctx *ctx_p){ // load RSA public keys from PEM files, store in k
     int k = 0;
 
     keyname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".pem") + 1);
-    dir = opendir("pubkeys");
+    dirname = malloc(strlen(DATA_DIR)+strlen("/pubkeys/") + 1);
+    strcpy(dirname, DATA_DIR);
+    strcat(dirname+strlen(DATA_DIR), "/pubkeys/");
+    dir = opendir(dirname);
     if (dir){
         while ((en = readdir(dir)) != NULL){
             if (strlen(en->d_name) == 2*SHA256_DIGEST_LENGTH + strlen(".pem")){
-                strcpy(fname, getcwd(NULL, sizeof(fname)));
-                strcat(fname, "/pubkeys/");
+                strcpy(fname, dirname);
                 strcat(fname, en->d_name);
                 if ((fp = fopen(fname, "rb")) == NULL){
                     printf("Error: failed to open pubkey files\n");
@@ -199,8 +206,7 @@ int load_pubkey(unsigned char *name, ctx *ctx_p){
     int sz;
     FILE *fp;
     RSA *rsa;
-    
-    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcpy(fname, DATA_DIR);
     strcat(fname, "/pubkeys/");
     strncat(fname, name, 2*SHA256_DIGEST_LENGTH);
     strcat(fname, ".pem");
@@ -229,7 +235,7 @@ int store_key(unsigned char *data, int data_len, unsigned char *name){
     memcpy(keyname, name, 2*SHA256_DIGEST_LENGTH);
     memcpy(keyname+2*SHA256_DIGEST_LENGTH, ".key", strlen(".key"));
     keyname[2*SHA256_DIGEST_LENGTH + strlen(".key")] = 0;
-    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcpy(fname, DATA_DIR);
     strcat(fname, "/keys/");
     strcat(fname, keyname);
     fp = fopen(fname, "wb");
@@ -246,18 +252,21 @@ int load_keys(ctx *ctx_p){
     struct dirent *en;
     FILE *fp;
     unsigned char *keyname;
+    unsigned char *dirname;
     unsigned char fname[256] = {0};
     int sz;
     unsigned char *data;
     int k = 0;
 
     keyname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".key") + 1);
-    dir = opendir("keys");
+    dirname = malloc(strlen(DATA_DIR)+strlen("/keys/"));
+    strcpy(dirname, DATA_DIR);
+    strcat(dirname, "/keys/");
+    dir = opendir(dirname);
     if (dir){
         while ((en = readdir(dir)) != NULL){
             if (strlen(en->d_name) == 2*SHA256_DIGEST_LENGTH + strlen(".pem")){
-                strcpy(fname, getcwd(NULL, sizeof(fname)));
-                strcat(fname, "/keys/");
+                strcpy(fname, dirname);
                 strcat(fname, en->d_name);
                 if ((fp = fopen(fname, "rb")) == NULL){
                     printf("Error: failed to open private key files\n");
@@ -292,10 +301,11 @@ int load_key(unsigned char *addr, ctx *ctx_p){
     unsigned char *data;
     int sz;
     FILE *fp;
-
-    fname = malloc(2*SHA256_DIGEST_LENGTH + strlen(".key") + 1);
-    memcpy(fname, addr, 2*SHA256_DIGEST_LENGTH);
-    memcpy(fname + 2*SHA256_DIGEST_LENGTH, ".key", strlen(".key") + 1);
+    fname = malloc(strlen(DATA_DIR) + strlen("/keys/") + 2*SHA256_DIGEST_LENGTH + strlen(".key") + 1);
+    strcpy(fname, DATA_DIR);
+    strcat(fname, "/keys/");
+    memcpy(&fname[0]+strlen(DATA_DIR)+strlen("/keys/"), addr, 2*SHA256_DIGEST_LENGTH);
+    memcpy(&fname[0]+strlen(DATA_DIR)+strlen("/keys/")+2*SHA256_DIGEST_LENGTH, ".key", strlen(".key")+1);
     if ((fp = fopen(fname, "rb")) == NULL){
         printf("Error: unable to open specified key file\n");
         return -1;
@@ -313,9 +323,12 @@ int load_key(unsigned char *addr, ctx *ctx_p){
 }
 
 int pubkey_known(unsigned char *addr){
-    unsigned char fname[2*SHA256_DIGEST_LENGTH + strlen(".pem") + 1];
-    memcpy(fname, addr, 2*SHA256_DIGEST_LENGTH);
-    memcpy(fname+2*SHA256_DIGEST_LENGTH, ".pem", strlen(".pem")+1);
+    unsigned char *fname;
+    fname = malloc(strlen(DATA_DIR)+strlen("/pubkeys/")+2*SHA256_DIGEST_LENGTH+strlen(".pem"));
+    strcpy(fname, DATA_DIR);
+    strcat(fname, "/pubkeys/");
+    memcpy(&fname[0]+strlen(DATA_DIR)+strlen("/pubkeys/"), addr, 2*SHA256_DIGEST_LENGTH);
+    memcpy(&fname[0]+strlen(DATA_DIR)+strlen("/pubkeys/")+2*SHA256_DIGEST_LENGTH, ".pem", strlen(".pem")+1);
     if (isfile(fname))
         return 1;
     else

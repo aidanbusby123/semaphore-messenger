@@ -10,6 +10,8 @@
 extern const char TX_START[4];
 extern const char TX_END[4];
 
+#define DATA_DIR "/usr/local/semaphore"
+
 #define MESSAGE 0x01
 #define PUBKEY_REQ 0x02
 #define PUBKEY_X 0x03

@@ -100,7 +100,7 @@ int format_key_x_msg(msg *msg_p, ctx *ctx_p){ // format msg to send shared AES k
     RAND_bytes(seed, AES_KEY_SZ/8); // generate random number to be used as seed for AES key
     aes_key = SHA256(seed, AES_KEY_SZ/8, NULL); // generate AES key
     
-    store_key(aes_key, AES_KEY_SZ/8, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
+    store_key(aes_key, SHA256_DIGEST_LENGTH, char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH));
     load_key(char_to_hex(msg_p->recv_addr, SHA256_DIGEST_LENGTH), ctx_p);
     
     // Encrypt certificate key (RSA)       
@@ -304,7 +304,7 @@ int store_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *addr){
     memcpy(name, addr, SHA256_DIGEST_LENGTH*2);
     name[SHA256_DIGEST_LENGTH*2] = 0;
 
-    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcpy(fname, DATA_DIR);
     strcat(fname, "/messages/");
     strcat(fname, name);
 
@@ -358,7 +358,7 @@ int store_txt_msg_log(msg *msg_p, ctx *ctx_p, unsigned char *addr){
     memcpy(name, addr, 2*SHA256_DIGEST_LENGTH);
     name[2*SHA256_DIGEST_LENGTH] = 0;
 
-    strcpy(fname, getcwd(NULL, sizeof(fname)));
+    strcpy(fname, DATA_DIR);
     strcat(fname, "/messages/");
     strcat(fname, "log");
 
