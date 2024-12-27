@@ -1,4 +1,3 @@
-import tkinter as tk
 import socket
 import time
 import atexit
