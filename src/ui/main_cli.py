@@ -12,7 +12,7 @@ import threading
 TX_START = "66 26 07 01"
 TX_END = "31 41 59 26"
 
-socket_path = "/tmp/semaphore-client.sock"
+socket_path = "semaphore-client.sock"
 
 destkey = 0
 port = "6969"
@@ -75,7 +75,7 @@ def pubkey_exchange(key):
 '''
 def get_contacts():
     contact_count = 0
-    dr = os.path.join(os.path.join(os.path.dirname(os.getcwd()), 'src'), 'pubkeys') # pubkey directory
+    dr = os.path.join(os.path.dirname(os.getcwd()), 'pubkeys') # pubkey directory
     for path in os.listdir(dr):
         if os.path.isfile(os.path.join(dr, path)):
             contacts.append(os.path.splitext(os.path.basename(os.path.join(dr, path)))[0])
@@ -159,7 +159,7 @@ connect(addr)
 
 print("Enter contact address: ")
 destkey_str = input()
-destkey = set_contact(destkey_str)
+set_contact(destkey_str)
 if destkey in contacts:
     main_loop()
 else:
