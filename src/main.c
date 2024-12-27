@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<strings.h>
 
 #ifdef _WIN32
     #include<winsock2.h>
@@ -179,7 +180,7 @@ int main(){
     // main loop, process data from proc_fd and handle program execution, send messages
     while (1){
         while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
-            printf("read UI buffer\n");
+            //printf("read UI buffer\n");
             buf_len += res;
             buf = buf_start;
             if (res == BUFLEN){
@@ -192,7 +193,7 @@ int main(){
                     printf("End of UI buffer\n");
                     break;
                 } else if (res == -1){
-                    printf("Error: failed to read UI sock buffer\n");
+                    //printf("Error: failed to read UI sock buffer\n");
                 
                 } else{
                     continue;
