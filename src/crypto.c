@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include<string.h>
+#include<strings.h>
 #include<dirent.h>
 #include<unistd.h>
 #include <openssl/pem.h>
