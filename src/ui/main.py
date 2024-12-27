@@ -101,7 +101,7 @@ def add_contacts():
 
 def get_contacts():
     contact_count = 0
-    dr = os.path.join(os.path.join(os.path.dirname(os.getcwd()), 'client'), 'pubkeys')
+    dr = os.path.join(os.path.join(os.path.dirname(os.getcwd()), 'src'), 'pubkeys') # pubkey directory
     for path in os.listdir(dr):
         if os.path.isfile(os.path.join(dr, path)):
             contacts.append(os.path.splitext(os.path.basename(os.path.join(dr, path)))[0])

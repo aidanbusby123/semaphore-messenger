@@ -158,7 +158,7 @@ int main(){
     struct sockaddr_un ui;
     int ui_len = sizeof(ui);
 
-    ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len);
+    ctx.ui_sock = accept(proc_fd, (struct sockaddr*)&ui, &ui_len); // allow UI to connect to server
 
     unsigned int sz;
     unsigned char checksum[SHA256_DIGEST_LENGTH];
@@ -179,6 +179,7 @@ int main(){
     // main loop, process data from proc_fd and handle program execution, send messages
     while (1){
         while ((res = read(ctx.ui_sock, buf + ((i-1) * BUFLEN), BUFLEN))){
+            printf("read UI buffer\n");
             buf_len += res;
             buf = buf_start;
             if (res == BUFLEN){
@@ -188,16 +189,25 @@ int main(){
                 i++;
             } else {
                 if (memcmp(buf + buf_len - sizeof(TX_END), &TX_END, sizeof(TX_END)) == 0){
+                    printf("End of UI buffer\n");
                     break;
+                } else if (res == -1){
+                    printf("Error: failed to read UI sock buffer\n");
+                
                 } else{
                     continue;
                 }
             }
 
-        }    
-        printf("main: ");
-    write(STDOUT_FILENO, buf, buf_len);
-    putchar('\n');
+        } 
+        if (res == 0){
+            exit_func(&ctx);
+            exit(-1);
+        }
+        printf("res: %d\n", res);   
+        printf("main says: ");
+        write(STDOUT_FILENO, buf, buf_len);
+        putchar('\n');
         if (buf_len > (2 * sizeof(TX_START) + 4)){
                 // parse buffer
                 int m = sizeof(TX_START);
