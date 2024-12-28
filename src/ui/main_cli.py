@@ -164,6 +164,7 @@ if destkey in contacts:
     main_loop()
 else:
     pubkey_exchange(destkey_str)
+    main_loop()
 
 
 
