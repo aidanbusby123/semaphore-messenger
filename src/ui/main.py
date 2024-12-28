@@ -34,6 +34,19 @@ def connect(addr):
     type_data = 5
     message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, 'little') + addr.encode() + "\0".encode() + bytes.fromhex(TX_END)
     client.sendall(message)
+    
+def disconnect():
+    type_data = 6
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, "little") + bytes.fromhex(TX_END)
+    client.sendall(message)
+
+def ui_disconnect():
+    type_data = 7
+    message = bytes.fromhex(TX_START) + int(type_data).to_bytes(1, "little") + bytes.fromhex(TX_END)
+    client.sendall(message)
+    window.destroy()
+    exit()
+    
 
 def send_message(event=None):
     message_content = message_entry.get()
@@ -62,7 +75,7 @@ def connect_window():
     win.columnconfigure(0, weight=1, minsize=300)
     win.columnconfigure(1, weight=2, minsize=100)
     win.minsize(400, 100)
-    win.maxsize(400, 100)\
+    win.maxsize(400, 100)
 
     input_label = tk.Label(win, text="Server address", width=300)
     input_label.grid(row=0, column=0)
@@ -238,6 +251,8 @@ message_entry.bind('<Return>', send_message) # bind enter key to send message in
 
 get_contacts()
 contact_window_setup(contacts)
+
+window.protocol("WM_DELETE_WINDOW", ui_disconnect)
 
 window.mainloop()
 

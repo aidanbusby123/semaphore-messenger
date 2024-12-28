@@ -97,6 +97,24 @@ int server_connect(char *addr_s, int port, int mode){ // connect to server
     
 }
 
+int server_disconnect(ctx ctx){
+    if (close(ctx.server_fd) < 0){
+        perror("Server disconnect error\n");
+        return -1;
+    } else {
+        return 1;
+    }
+}
+
+int ui_disconnect(ctx ctx){
+    if (close(ctx.ui_sock) < 0){
+        perror("UI disconnect error\n");
+        return -1;
+    } else {
+        return 1;
+    }
+}
+
 int send_msg(msg message, int server_fd){ // format and send message to server
     int raw_msg_buf_len = message.sz + sizeof(message.type) + SHA256_DIGEST_LENGTH * 2 + sizeof(message.timestamp) + sizeof(message.sz) + sizeof(message.sig_len) + message.sig_len;
     unsigned char *raw_msg_buf = (unsigned char*)malloc((unsigned int) raw_msg_buf_len); // message buffer

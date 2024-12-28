@@ -66,7 +66,9 @@ void *recv_msg(void *arg){ // handle the reception of messages
                     }
                     parse_txt_msg(&in_msg, ctx_p, &buf[0], buf_len);
                     store_txt_msg(&in_msg, ctx_p, char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH));
+
                 }else if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
+
                     if (buf_len < (2 * sizeof(TX_START) + 4 + SHA256_DIGEST_LENGTH * 2 + sizeof(in_msg.timestamp) + sizeof(in_msg.sz) + sizeof(in_msg.sig_len))){
                         printf("Error: recieved incorrectly formatted PUBKEY_REQ\n");
                     }
@@ -88,7 +90,9 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         in_msg.sz = 1;
                         send_msg(in_msg, ctx_p->server_fd);
                     } 
+
                 } else if (in_msg.type == PUBKEY_X){ // recieved public key
+
                     printf("PUBKEY_X\n");
                     if (parse_pubkey_x_buf(&in_msg, ctx_p, &buf[0], buf_len) == -1){
                         printf("Error: unable to extract pubkey from buf\n");
@@ -99,10 +103,19 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         return NULL;
                     }
                     send_msg(in_msg, ctx_p->server_fd);
+
                 } else if (in_msg.type == KEY_X){
+
                     printf("KEY_X\n");
                     if (parse_key_x_buf(&in_msg, ctx_p, &buf[0], buf_len) == -1){
                         printf("Error: unable to extract shared key from buf\n");
+                    }
+
+                } else if (in_msg.type == DISCON){
+
+                    printf("DISCON\n");
+                    if (server_disconnect(*ctx_p) < 0){
+                        printf("Error: server disconnect failed");
                     }
 
                 }

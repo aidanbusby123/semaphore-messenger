@@ -17,7 +17,9 @@ extern const char TX_END[4];
 #define PUBKEY_X 0x03
 #define KEY_X 0x04
 #define CON 0x05
-#define CONFIG 0x06
+#define DISCON 0x06
+#define UI_DISCON 0x07
+#define CONFIG 0x08
 
 #define BUFLEN 1024
 #define RSA_KEY_SZ 4096
@@ -86,6 +88,9 @@ int send_msg(msg message, int server_fd); // send message
 void *recv_msg(void *arg); // handle the reception of messages
 
 int server_connect(char *addr_s, int port, int mode);
+int server_disconnect (ctx ctx);
+
+int ui_disconnect(ctx ctx); // disconnect from UI
 
 // AES encryption
 int encrypt(unsigned char *data, int data_len, unsigned char *key, unsigned char *iv, unsigned char *cipher);

@@ -260,7 +260,18 @@ int main(){
                             store_txt_msg(&raw_msg, &ctx, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
                         }
                     }
-                } else {
+                } else if (raw_msg.type == UI_DISCON) {
+                    printf("UI_DISCON\n");
+                    if (ui_disconnect(ctx) < 0){
+                        printf("Error: UI disconnect failed");
+                    } else {
+                        exit_func(&ctx);
+                        pthread_exit(&recv_thread);
+                        exit(0);
+                    }
+
+                } 
+                else {
                     printf("Message format error\n");
                 }
                 raw_msg.type = 0;
