@@ -9,8 +9,8 @@ import base64
 import datetime
 import threading
 
-TX_START = "66 26 07 01"
-TX_END = "31 41 59 26"
+TX_START = "02 07 01 08"
+TX_END = "03 01 04 01"
 
 socket_path = "semaphore-client.sock"
 
