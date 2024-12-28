@@ -12,7 +12,7 @@ import threading
 TX_START = "02 07 01 08"
 TX_END = "03 01 04 01"
 
-socket_path = "../semaphore-client.sock"
+socket_path = "semaphore-client.sock"
 
 destkey = 0
 port = "6969"
