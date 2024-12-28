@@ -15,5 +15,5 @@ The Semaphore protocol consists of message formatted as follows
 
 #### Transmission start
 
-4  bytes. 
+4  bytes. Can be modified, but the generic value (in hexadecimal) is ```03 01 04 01```
 
