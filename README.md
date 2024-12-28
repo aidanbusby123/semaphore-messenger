@@ -6,6 +6,6 @@ for cryptographic power. Semaphore is currently in its very early stages, but is
 
 The Semaphore Messenger uses the Semaphore protocol. The Semaphore protocol is a simpltic, lightweight messaging protocol that is relatively simple to integrate into external applications, with the goal being security, simplicity, and application.
 
-'''
+```
 [TRANSMISSION START {4 bytes}] [MESSAGE SIZE {1 byte}] [RECIEVER ADDRESS (SHA256) {32 bytes}] [SENDER ADDRESS (SHA256) {32 bytes}] [TIMESTAMP {4 bytes}] [MESSAGE SIZE {4 bytes}] [MESSAGE CONTENT {MESSAGE SIZE}] [SIGNATURE LENGTH {4 bytes}] [SIGNATURE {SIGNATURE LENGTH}]
-'''
+```
