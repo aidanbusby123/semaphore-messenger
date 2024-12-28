@@ -163,7 +163,7 @@ set_contact(destkey_str)
 if destkey in contacts:
     main_loop()
 else:
-    pubkey_exchange(destkey)
+    pubkey_exchange(destkey_str)
 
 
 
