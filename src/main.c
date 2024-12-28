@@ -33,8 +33,8 @@ const char b64_inv[] = { 62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58,
 	29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
 	43, 44, 45, 46, 47, 48, 49, 50, 51 };
 
-const char TX_START[4] = {0x66, 0x26, 0x07, 0x01};
-const char TX_END[4] = {0x31, 0x41, 0x59, 0x26};
+const char TX_START[4] = {0x02, 0x07, 0x01, 0x08};
+const char TX_END[4] = {0x03, 0x01, 0x04, 0x01};
 
 void exit_func(ctx *exit_ctx);
 
