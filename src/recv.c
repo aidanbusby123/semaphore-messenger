@@ -82,15 +82,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                     send_msg(in_msg, ctx_p->server_fd);
                     in_msg.content = NULL;
 
-                    if (!pubkey_known(char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH))){ // send PUBKEY_REQ to sender
-                        printf("PUBKEY_REQ automatic resp\n");
-                        in_msg.type = PUBKEY_REQ;
-                        in_msg.timestamp = time(NULL);
-                        in_msg.content = calloc(1, 1);
-                        in_msg.sz = 1;
-                        send_msg(in_msg, ctx_p->server_fd);
-                    } 
-
+                    
                 } else if (in_msg.type == PUBKEY_X){ // recieved public key
 
                     printf("PUBKEY_X\n");
@@ -110,6 +102,15 @@ void *recv_msg(void *arg){ // handle the reception of messages
                     if (parse_key_x_buf(&in_msg, ctx_p, &buf[0], buf_len) == -1){
                         printf("Error: unable to extract shared key from buf\n");
                     }
+if (!pubkey_known(char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH))){ // send PUBKEY_REQ to sender
+                        printf("PUBKEY_REQ automatic resp\n");
+                        in_msg.type = PUBKEY_REQ;
+                        in_msg.timestamp = time(NULL);
+                        in_msg.content = calloc(1, 1);
+                        in_msg.sz = 1;
+                        send_msg(in_msg, ctx_p->server_fd);
+                    } 
+
 
                 } else if (in_msg.type == DISCON){
 
