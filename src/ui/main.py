@@ -114,7 +114,7 @@ def add_contacts():
 
 def get_contacts():
     contact_count = 0
-    dr = os.path.join(os.path.join(os.path.dirname(os.getcwd()), 'src'), 'pubkeys') # pubkey directory
+    dr = os.path.join('/usr/local/semaphore/', 'pubkeys') # pubkey directory
     for path in os.listdir(dr):
         if os.path.isfile(os.path.join(dr, path)):
             contacts.append(os.path.splitext(os.path.basename(os.path.join(dr, path)))[0])
@@ -150,7 +150,7 @@ def message_window_setup(messages):
         m_buf = base64.b64decode(m)
         message_tuple = parse_stored_message(m_buf)
         print(message_tuple[3])
-        message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3]
+        message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3].decode('utf-8', errors='replace')        
         message_list.insert('end', message_str)
 
 def set_contact(event=None):
@@ -180,7 +180,7 @@ def ui_listen():
                 print(m_buf)
                 message_tuple = parse_ui_message(m_buf[1:])
                 print(message_tuple[3])
-                message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3].decode()
+                message_str = '(' + str(datetime.datetime.fromtimestamp(int.from_bytes(message_tuple[1], sys.byteorder))) + ') ' + '[ ' + message_tuple[0].hex() + ' ] : ' + message_tuple[3].decode('utf-8', errors='replace')                
                 message_list.insert('end', message_str)
                 message_list.yview(tk.END)
                 break
@@ -192,7 +192,7 @@ ui_thread.start()
 
 window = tk.Tk()
 
-window.title("Carbide Messenger")
+window.title("Semaphore Messenger")
 window.geometry("800x600+0+0")
 
 window.option_add('*tearOff', tk.FALSE)

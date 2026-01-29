@@ -214,9 +214,12 @@ int parse_txt_msg(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){ // p
 
     msg_p->content = malloc(msg_p->sz);
     memcpy(msg_p->content, temp, msg_p->sz);
+
+    printf("Parsed Message: %s\n\n", msg_p->content);
 }
 
 int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){ // extract RSA public key data from recieved buffer
+    printf("parsing pubkey buffer, inside func\n");
     int m = sizeof(msg_p->type);
     if (buf_len >= (2 * SHA256_DIGEST_LENGTH + sizeof(msg_p->timestamp) + sizeof(msg_p->sz))){ // Handle certificate message
         m += SHA256_DIGEST_LENGTH;
@@ -231,8 +234,11 @@ int parse_pubkey_x_buf(msg *msg_p, ctx *ctx_p, unsigned char *buf, int buf_len){
         }
         msg_p->content = malloc(msg_p->sz);
         memcpy(msg_p->content, &buf[m], msg_p->sz);
+        printf("copied contents\n");
         store_pubkey(msg_p->content, msg_p->sz, char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH));
+        printf("pubkey stored\n");
         load_pubkey(char_to_hex(msg_p->send_addr, SHA256_DIGEST_LENGTH), ctx_p);
+        printf("pubkey loaded\n");
     } else {
         printf("Error: Incorrect key formatting\n");
         return -1;

@@ -180,6 +180,7 @@ int send_msg(msg message, int server_fd){ // format and send message to server
     printf("\n");
     msg_buf_len = sizeof(TX_START) + sizeof(TX_END) + temp_msg_buf_len;
     msg_buf = malloc(msg_buf_len);
+
     memcpy(msg_buf, TX_START, sizeof(TX_START));
     memcpy(msg_buf+sizeof(TX_START), temp_msg_buf, temp_msg_buf_len);
     memcpy(msg_buf+sizeof(TX_START) + temp_msg_buf_len, TX_END, sizeof(TX_END));
@@ -191,6 +192,7 @@ int send_msg(msg message, int server_fd){ // format and send message to server
             break;
         }
         bytes_wrote += res;
+        printf("%d\n", bytes_wrote);
         if (bytes_wrote < msg_buf_len)
             continue;
         else

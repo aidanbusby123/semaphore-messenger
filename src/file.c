@@ -5,7 +5,7 @@
 #include"common.h"
 
 
-FILE* open_file(char *file){
+FILE* open_file(char *file){ // open file
     FILE* fp;
     if ((fp = fopen(file, "rb")) == NULL)
         return NULL;
@@ -13,7 +13,7 @@ FILE* open_file(char *file){
     return fp;
 }
 
-int fsize(FILE* fp){
+int fsize(FILE* fp){ // get size of file
     int sz;
     fseek(fp, 0, SEEK_END);
     sz = ftell(fp);
@@ -21,7 +21,7 @@ int fsize(FILE* fp){
     return sz;
 }
 
-int isfile(unsigned char *fname){
+int isfile(unsigned char *fname){ // check if file exists
     FILE *fp;
     if (fp = fopen(fname, "r")){
         fclose(fp);

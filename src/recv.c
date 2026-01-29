@@ -65,7 +65,7 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         printf("Error: recieved incorrectly formatted MESSAGE\n");
                     }
                     parse_txt_msg(&in_msg, ctx_p, &buf[0], buf_len);
-                    store_txt_msg(&in_msg, ctx_p, char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH));
+                    //store_txt_msg(&in_msg, ctx_p, char_to_hex(in_msg.send_addr, SHA256_DIGEST_LENGTH));
 
                 }else if (in_msg.type == PUBKEY_REQ){ // if recieved message is public key exchange request
 
@@ -90,10 +90,12 @@ void *recv_msg(void *arg){ // handle the reception of messages
                         printf("Error: unable to extract pubkey from buf\n");
                         return NULL;
                     }
+                    printf("Pubkey buffer parsed\n");
                     if (format_key_x_msg(&in_msg, ctx_p) == -1){
                         printf("Error: unable to format shared key msg\n");
                         return NULL;
                     }
+                    printf("Sending key");
                     send_msg(in_msg, ctx_p->server_fd);
 
                 } else if (in_msg.type == KEY_X){

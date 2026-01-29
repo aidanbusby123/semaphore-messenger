@@ -129,8 +129,10 @@ int main(){
         mkdir(message_dir, 0700);
     }
 
-    if (load_pubkeys(&ctx) == -1);
-    if (load_keys(&ctx) == -1);
+    if (load_pubkeys(&ctx) == -1)
+        printf("Unable to load pubkeys\n");
+    if (load_keys(&ctx) == -1)
+        printf("Unable to load keys\n");
     if ((res = pthread_create(&recv_thread, NULL, recv_msg, (void*)&ctx)) != 0){ // create recieving thread
         printf("Error: failed to initialize recv_thread");
         return -1;
@@ -215,6 +217,7 @@ int main(){
                 raw_msg.type = buf[m];
                 m+=1; 
                 if (raw_msg.type == PUBKEY_REQ){
+                    printf("Sending Pubkey request\n");
                     // send RSA key
                     if (buf_len == (2 * sizeof(TX_START) + sizeof(raw_msg.timestamp) + sizeof(raw_msg.type) + SHA256_DIGEST_LENGTH)){
                         memcpy(raw_msg.recv_addr, &buf[m], SHA256_DIGEST_LENGTH);
@@ -257,7 +260,9 @@ int main(){
                             printf("size:%d\n", raw_msg.sz);
                             printf("timestamp:%d\n", raw_msg.timestamp);
                             send_msg(raw_msg, ctx.server_fd);
-                            store_txt_msg(&raw_msg, &ctx, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
+                            printf("Message sent\n\n");
+                            //store_txt_msg(&raw_msg, &ctx, char_to_hex(raw_msg.recv_addr, SHA256_DIGEST_LENGTH));
+                            //printf("Message stored\n");
                         }
                     }
                 } else if (raw_msg.type == UI_DISCON) {
